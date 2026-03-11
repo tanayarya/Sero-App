@@ -1,0 +1,57 @@
+name: product-atom
+options:
+  bundleIdPrefix: com.example
+  developmentLanguage: en
+
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.example.productatom
+    PRODUCT_NAME: product-atom
+    SWIFT_VERSION: 5.0
+    MARKETING_VERSION: 1.0
+    CURRENT_PROJECT_VERSION: 1
+    SUPPORTED_PLATFORMS: macosx
+    ALWAYS_SEARCH_USER_PATHS: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    MACOSX_DEPLOYMENT_TARGET: 14.0
+
+targets:
+  product-atom:
+    type: application
+    platform: macOS
+    deploymentTarget: '14.0'
+    sources:
+      - path: product-atom
+    entitlements:
+      path: product-atom/product-atom.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-only: true
+    info:
+      path: product-atom/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: $(DEVELOPMENT_LANGUAGE)
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: 6.0
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleIconName: AppIcon
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: ''
+        NSMainStoryboardFile: ''
+
+schemes:
+  product-atom:
+    build:
+      targets:
+        product-atom: all
+    run:
+      config: Debug
+    archive:
+      config: Release
