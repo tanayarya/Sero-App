@@ -24,4 +24,10 @@ extension Color {
     static let successGreen = Color("SuccessGreen")
     static let warningAmber = Color("WarningAmber")
     static let errorRed = Color("ErrorRed")
+
+    // MARK: - Chat Bubbles (iMessage-style green for user, neutral for AI)
+    static let chatBubbleUser = Color("ChatBubbleUser")
+    static let chatBubbleUserText = Color.white
+    static let chatBubbleAI = Color("ChatBubbleAI")
+    static let chatBubbleAIBg = Color("ChatBubbleAIBg")
 }

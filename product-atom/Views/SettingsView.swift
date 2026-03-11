@@ -3,23 +3,28 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var isTestingConnection = false
+    @State private var connectionResult: Bool? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            settingsForm
+            settingsContent
             Divider()
             footer
         }
-        .frame(width: 440, height: 360)
+        .frame(width: 460, height: 420)
         .background(Color.surfacePrimary)
+        .onAppear { appState.fetchModels() }
     }
+
+    // MARK: - Header
 
     @ViewBuilder
     private var header: some View {
         HStack {
-            Text("Settings")
+            Label("Settings", systemImage: "gearshape.fill")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
@@ -33,65 +38,130 @@ struct SettingsView: View {
         .padding(16)
     }
 
+    // MARK: - Content
+
     @ViewBuilder
-    private var settingsForm: some View {
+    private var settingsContent: some View {
         Form {
-            Section("Ollama Configuration") {
-                TextField("Server URL", text: $appState.ollamaURL)
-                Picker("Chat Model", selection: $appState.selectedModel) {
-                    ForEach(appState.availableModels, id: \.self) { m in
-                        Text(m).tag(m)
-                    }
-                }
-                TextField("Embedding Model", text: $appState.embeddingModel)
-            }
-            Section("Status") {
-                statusRow
-            }
+            ollamaSection
+            modelsSection
+            appearanceSection
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
-    private var statusRow: some View {
-        HStack {
-            let connected = appState.ollamaConnected
-            Circle()
-                .fill(connected ? Color.successGreen : Color.errorRed)
-                .frame(width: 8, height: 8)
-            Text(connected ? "Connected" : "Disconnected")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.textPrimary)
-            Spacer()
-            Button("Test") {
-                testConnection()
+    private var ollamaSection: some View {
+        Section {
+            HStack {
+                TextField("http://localhost:11434", text: $appState.ollamaURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13, design: .monospaced))
+                    .onSubmit { appState.fetchModels() }
+                connectionStatusBadge
+                Button(isTestingConnection ? "Testing…" : "Test") {
+                    testConnection()
+                }
+                .controlSize(.small)
+                .disabled(isTestingConnection)
             }
-            .controlSize(.small)
+        } header: {
+            Text("Ollama Server URL")
+        } footer: {
+            Text("Default: http://localhost:11434 — your settings are saved automatically.")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.textTertiary)
         }
     }
 
     @ViewBuilder
+    private var connectionStatusBadge: some View {
+        if let result = connectionResult {
+            Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(result ? Color.successGreen : Color.errorRed)
+        } else if appState.ollamaConnected {
+            Circle().fill(Color.successGreen).frame(width: 8, height: 8)
+        } else {
+            Circle().fill(Color.errorRed).frame(width: 8, height: 8)
+        }
+    }
+
+    @ViewBuilder
+    private var modelsSection: some View {
+        Section {
+            if appState.availableModels.isEmpty {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("No models detected. Make sure Ollama is running and has models installed.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.textSecondary)
+                }
+            } else {
+                Picker("Chat Model", selection: $appState.selectedModel) {
+                    ForEach(appState.availableModels) { m in
+                        Text(m.name).tag(m.name)
+                    }
+                }
+                Picker("Embedding Model", selection: $appState.embeddingModel) {
+                    ForEach(appState.availableModels) { m in
+                        Text(m.name).tag(m.name)
+                    }
+                }
+            }
+        } header: {
+            Text("AI Models")
+        } footer: {
+            Text("Models are fetched from your Ollama instance. Install models via: ollama pull nomic-embed-text")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.textTertiary)
+        }
+    }
+
+    @ViewBuilder
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $appState.colorSchemePref) {
+                Label("System", systemImage: "circle.lefthalf.filled").tag("system")
+                Label("Light", systemImage: "sun.max").tag("light")
+                Label("Dark", systemImage: "moon").tag("dark")
+            }
+            .pickerStyle(.radioGroup)
+        }
+    }
+
+    // MARK: - Footer
+
+    @ViewBuilder
     private var footer: some View {
         HStack {
+            Button("Refresh Models") { appState.fetchModels() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             Spacer()
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.appAccent)
-                .controlSize(.regular)
         }
         .padding(16)
     }
 
+    // MARK: - Connection Test
+
     private func testConnection() {
-        guard let url = URL(string: appState.ollamaURL) else { return }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 5
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            DispatchQueue.main.async {
-                let http = response as? HTTPURLResponse
-                appState.ollamaConnected = (http?.statusCode == 200)
+        isTestingConnection = true
+        connectionResult = nil
+        Task {
+            let result = await OllamaService.shared.testConnection(baseURL: appState.ollamaURL)
+            await MainActor.run {
+                connectionResult = result
+                appState.ollamaConnected = result
+                isTestingConnection = false
+                if result { appState.fetchModels() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    connectionResult = nil
+                }
             }
-        }.resume()
+        }
     }
 }

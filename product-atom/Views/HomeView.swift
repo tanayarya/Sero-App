@@ -255,9 +255,9 @@ struct HomeView: View {
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-            guard let url = url else { return }
-            let ext = url.pathExtension.lowercased()
+        provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+            guard let data = item as? Data, let fileURL = URL(dataRepresentation: data, relativeTo: nil) else { return }
+            let ext = fileURL.pathExtension.lowercased()
             let fileType: DocFileType
             switch ext {
             case "pdf": fileType = .pdf
@@ -265,8 +265,8 @@ struct HomeView: View {
             default: fileType = .txt
             }
             DispatchQueue.main.async {
-                let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, url: url)
-                appState.addDocument(doc)
+                let doc = ChatDocument(name: fileURL.lastPathComponent, fileType: fileType, url: fileURL)
+                appState.loadDocument(doc)
             }
         }
         return true
@@ -277,7 +277,7 @@ struct HomeView: View {
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
         URLSession.shared.dataTask(with: request) { _, response, _ in
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [self] in
                 let http = response as? HTTPURLResponse
                 appState.ollamaConnected = (http?.statusCode == 200)
             }
