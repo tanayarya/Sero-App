@@ -17,7 +17,7 @@ struct OllamaEmbedRequest: Encodable {
 }
 
 struct OllamaEmbedResponse: Decodable {
-    let embedding: [Double]
+    let embedding: [Float]
 }
 
 struct OllamaChatMessage: Codable {
@@ -42,18 +42,31 @@ final class OllamaService {
     static let shared = OllamaService()
     private init() {}
 
+    private func normalizeURL(_ base: String) -> String {
+        var u = base.trimmingCharacters(in: .whitespaces)
+        if !u.hasPrefix("http://") && !u.hasPrefix("https://") {
+            u = "http://" + u
+        }
+        return u
+    }
+
     func fetchModels(baseURL: String) async throws -> [OllamaModel] {
-        guard let url = URL(string: "\(baseURL)/api/tags") else { throw URLError(.badURL) }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let base = normalizeURL(baseURL)
+        guard let url = URL(string: "\(base)/api/tags") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 8
+        let (data, _) = try await URLSession.shared.data(for: req)
         let resp = try JSONDecoder().decode(OllamaModelsResponse.self, from: data)
         return resp.models
     }
 
-    func generateEmbedding(baseURL: String, model: String, text: String) async throws -> [Double] {
-        guard let url = URL(string: "\(baseURL)/api/embeddings") else { throw URLError(.badURL) }
+    func generateEmbedding(baseURL: String, model: String, text: String) async throws -> [Float] {
+        let base = normalizeURL(baseURL)
+        guard let url = URL(string: "\(base)/api/embeddings") else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 60
         let body = OllamaEmbedRequest(model: model, prompt: text)
         req.httpBody = try JSONEncoder().encode(body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -68,10 +81,12 @@ final class OllamaService {
         userMessage: String,
         onToken: @escaping (String) -> Void
     ) async throws {
-        guard let url = URL(string: "\(baseURL)/api/chat") else { throw URLError(.badURL) }
+        let base = normalizeURL(baseURL)
+        guard let url = URL(string: "\(base)/api/chat") else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 120
         let messages: [OllamaChatMessage] = [
             OllamaChatMessage(role: "system", content: systemPrompt),
             OllamaChatMessage(role: "user", content: userMessage)
@@ -91,7 +106,8 @@ final class OllamaService {
     }
 
     func testConnection(baseURL: String) async -> Bool {
-        guard let url = URL(string: baseURL) else { return false }
+        let base = normalizeURL(baseURL)
+        guard let url = URL(string: base) else { return false }
         var req = URLRequest(url: url)
         req.timeoutInterval = 5
         guard let (_, resp) = try? await URLSession.shared.data(for: req) else { return false }

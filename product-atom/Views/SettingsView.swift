@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var isTestingConnection = false
     @State private var connectionResult: Bool? = nil
     @State private var urlDraft: String = ""
-
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
@@ -18,14 +17,13 @@ struct SettingsView: View {
             Divider()
             settingsFooter
         }
-        .frame(width: 480, height: 440)
+        .frame(width: 480, height: 460)
         .onAppear {
             urlDraft = appState.ollamaURL
             appState.fetchModels()
         }
     }
 
-    // MARK: - Header
     @ViewBuilder
     private var settingsHeader: some View {
         HStack {
@@ -42,7 +40,6 @@ struct SettingsView: View {
         .padding(18)
     }
 
-    // MARK: - Content
     @ViewBuilder
     private var settingsContent: some View {
         Form {
@@ -57,26 +54,29 @@ struct SettingsView: View {
     @ViewBuilder
     private var ollamaSection: some View {
         Section {
-            HStack(spacing: 8) {
-                // Native macOS text field
-                TextField("http://localhost:11434", text: $urlDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13, design: .monospaced))
-                    .onSubmit { commitURL() }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Ollama URL")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
 
-                connectionIndicator
+                HStack(spacing: 8) {
+                    TextField("http://localhost:11434", text: $urlDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13, design: .monospaced))
+                        .onSubmit { commitURL() }
 
-                Button(isTestingConnection ? "Testing…" : "Test") {
-                    commitURL()
-                    testConnection()
+                    connectionIndicator
+
+                    Button(isTestingConnection ? "Testing…" : "Test") {
+                        commitURL()
+                        testConnection()
+                    }
+                    .controlSize(.small)
+                    .disabled(isTestingConnection)
                 }
-                .controlSize(.small)
-                .disabled(isTestingConnection)
             }
-        } header: {
-            Text("Ollama Server URL")
         } footer: {
-            Text("Default: http://localhost:11434  •  Your URL is saved automatically when you press Return or click Test.")
+            Text("Default: http://localhost:11434\nChanges are saved automatically when you press Return or click Test.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -89,7 +89,7 @@ struct SettingsView: View {
                 .foregroundStyle(result ? Color.green : Color.red)
         } else {
             Circle()
-                .fill(appState.ollamaConnected ? Color.green : Color.red)
+                .fill(appState.ollamaConnected ? Color.green : Color(red: 0.604, green: 0.627, blue: 0.651))
                 .frame(width: 8, height: 8)
         }
     }
@@ -111,6 +111,7 @@ struct SettingsView: View {
                     }
                 }
                 Picker("Embedding Model", selection: $appState.embeddingModel) {
+                    Text("None (keyword search)").tag("")
                     ForEach(appState.availableModels) { m in
                         Text(m.name).tag(m.name)
                     }
@@ -119,7 +120,7 @@ struct SettingsView: View {
         } header: {
             Text("AI Models")
         } footer: {
-            Text("Models are fetched from your Ollama instance. Recommended: llama3.2 for chat, nomic-embed-text for embeddings.\nInstall via: ollama pull nomic-embed-text")
+            Text("Supported models appear once detected from your Ollama instance.\nRecommended: llama3.2 for chat · nomic-embed-text for embeddings\nInstall: ollama pull nomic-embed-text")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -137,7 +138,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Footer
     @ViewBuilder
     private var settingsFooter: some View {
         HStack {
@@ -152,14 +152,11 @@ struct SettingsView: View {
         .padding(16)
     }
 
-    // MARK: - Helpers
-
     private func commitURL() {
         let trimmed = urlDraft.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty {
-            appState.ollamaURL = trimmed
-            appState.fetchModels()
-        }
+        guard !trimmed.isEmpty else { return }
+        appState.ollamaURL = trimmed
+        appState.fetchModels()
     }
 
     private func testConnection() {

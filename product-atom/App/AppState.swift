@@ -20,7 +20,7 @@ final class AppState: ObservableObject {
     @AppStorage("embeddingModel") var embeddingModel: String = ""
     @AppStorage("colorSchemePref") var colorSchemePref: String = "system"
 
-    // MARK: Persisted Recent Documents (encoded as JSON)
+    // MARK: Persisted Recent Documents
     @AppStorage("recentDocumentsJSON") private var recentDocumentsJSON: String = "[]"
 
     var recentDocuments: [ChatDocument] {
@@ -55,33 +55,35 @@ final class AppState: ObservableObject {
     // MARK: - Document Management
 
     func loadDocument(_ doc: ChatDocument) {
-        // Clear old embeddings if switching documents
         if let old = currentDocument, old.id != doc.id {
             RAGEngine.shared.clearDocument(old.id)
         }
         currentDocument = doc
-        // Persist to recents, avoid duplicates
-        var recents = recentDocuments.filter { $0.id != doc.id }
-        recents.insert(doc, at: 0)
-        recentDocuments = Array(recents.prefix(10))
-
+        addToRecents(doc)
         messages.removeAll()
         processingState = .idle
         Task { await processDocument(doc) }
     }
 
     func switchDocument(_ doc: ChatDocument) {
-        // Switch without re-processing if already embedded
-        if let old = currentDocument, old.id != doc.id {
+        guard currentDocument?.id != doc.id else { return }
+        if let old = currentDocument {
             RAGEngine.shared.clearDocument(old.id)
         }
         currentDocument = doc
+        addToRecents(doc)
         messages.removeAll()
         processingState = .idle
         Task { await processDocument(doc) }
     }
 
-    // MARK: - Document Processing (RAG)
+    private func addToRecents(_ doc: ChatDocument) {
+        var recents = recentDocuments.filter { $0.id != doc.id }
+        recents.insert(doc, at: 0)
+        recentDocuments = Array(recents.prefix(10))
+    }
+
+    // MARK: - Document Processing
 
     @MainActor
     func processDocument(_ doc: ChatDocument) async {
@@ -94,14 +96,14 @@ final class AppState: ObservableObject {
         do {
             let pages = try RAGEngine.shared.extractText(from: url)
             guard !pages.isEmpty else {
-                processingState = .failed("No readable text found in this document.")
+                processingState = .failed("No readable text found.")
                 return
             }
 
-            processingState = .embedding(progress: 0)
             var chunks = RAGEngine.shared.createChunks(pages: pages)
 
             if !embeddingModel.isEmpty {
+                processingState = .embedding(progress: 0)
                 try await RAGEngine.shared.embedChunks(
                     docID: doc.id,
                     chunks: &chunks,
@@ -111,7 +113,6 @@ final class AppState: ObservableObject {
                     self?.processingState = .embedding(progress: p)
                 }
             } else {
-                // Store chunks without embeddings for keyword fallback
                 RAGEngine.shared.storeChunksWithoutEmbeddings(docID: doc.id, chunks: chunks)
             }
 
@@ -125,6 +126,7 @@ final class AppState: ObservableObject {
     // MARK: - Chat
 
     func sendMessage(_ text: String) {
+        guard !isStreaming else { return }
         let userMsg = ChatMessage(role: .user, content: text)
         messages.append(userMsg)
         isStreaming = true
@@ -133,13 +135,15 @@ final class AppState: ObservableObject {
 
     @MainActor
     private func performRAGChat(userQuestion: String) async {
-        guard let doc = currentDocument else { return }
+        guard let doc = currentDocument else {
+            isStreaming = false
+            return
+        }
 
         let assistantID = UUID()
         messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", isStreaming: true))
 
         do {
-            // Retrieve relevant chunks
             let chunks: [DocumentChunk]
             if !embeddingModel.isEmpty {
                 chunks = try await RAGEngine.shared.retrieveRelevantChunks(
@@ -153,23 +157,21 @@ final class AppState: ObservableObject {
                 chunks = RAGEngine.shared.keywordRetrieve(for: userQuestion, docID: doc.id, topK: 8)
             }
 
-            let systemPrompt = RAGEngine.shared.buildSystemPrompt(
-                chunks: chunks,
-                documentName: doc.name
-            )
+            let systemPrompt = RAGEngine.shared.buildSystemPrompt(chunks: chunks, documentName: doc.name)
             let sourcePages = Array(Set(chunks.map { $0.pageNumber })).sorted()
             let primaryPage = chunks.first?.pageNumber
 
-            var fullResponse = ""
             let modelName = selectedModel.isEmpty ? "llama3.2" : selectedModel
+            var fullResponse = ""
+
             try await OllamaService.shared.streamChat(
                 baseURL: ollamaURL,
                 model: modelName,
                 systemPrompt: systemPrompt,
                 userMessage: userQuestion
             ) { [weak self] token in
-                fullResponse += token
                 guard let self else { return }
+                fullResponse += token
                 if let idx = self.messages.firstIndex(where: { $0.id == assistantID }) {
                     self.messages[idx] = ChatMessage(
                         id: assistantID,
@@ -216,19 +218,17 @@ final class AppState: ObservableObject {
                     self.selectedModel = first.name
                 }
                 if self.embeddingModel.isEmpty {
-                    let embedCandidate = models.first(where: {
+                    let embed = models.first(where: {
                         $0.name.contains("embed") || $0.name.contains("nomic") || $0.name.contains("mxbai")
                     })
-                    self.embeddingModel = embedCandidate?.name ?? models.first?.name ?? ""
+                    self.embeddingModel = embed?.name ?? ""
                 }
                 self.ollamaConnected = !models.isEmpty
             }
         }
     }
 
-    func clearChat() {
-        messages.removeAll()
-    }
+    func clearChat() { messages.removeAll() }
 
     // MARK: - Toast
 
