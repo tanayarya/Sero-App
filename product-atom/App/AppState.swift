@@ -1,4 +1,5 @@
 import SwiftUI
+import PDFKit
 
 // MARK: - Processing State
 
@@ -17,27 +18,64 @@ final class AppState: ObservableObject {
     @AppStorage("ollamaURL") var ollamaURL: String = "http://localhost:11434"
     @AppStorage("selectedModel") var selectedModel: String = ""
     @AppStorage("embeddingModel") var embeddingModel: String = ""
-    @AppStorage("colorScheme") var colorSchemePref: String = "system"
+    @AppStorage("colorSchemePref") var colorSchemePref: String = "system"
+
+    // MARK: Persisted Recent Documents (encoded as JSON)
+    @AppStorage("recentDocumentsJSON") private var recentDocumentsJSON: String = "[]"
+
+    var recentDocuments: [ChatDocument] {
+        get {
+            guard let data = recentDocumentsJSON.data(using: .utf8),
+                  let docs = try? JSONDecoder().decode([ChatDocument].self, from: data) else { return [] }
+            return docs
+        }
+        set {
+            let trimmed = Array(newValue.prefix(10))
+            if let data = try? JSONEncoder().encode(trimmed),
+               let str = String(data: data, encoding: .utf8) {
+                recentDocumentsJSON = str
+            }
+        }
+    }
 
     // MARK: Runtime State
     @Published var currentDocument: ChatDocument?
-    @Published var documents: [ChatDocument] = []
     @Published var messages: [ChatMessage] = []
     @Published var isStreaming = false
     @Published var showSettings = false
+    @Published var showHowItWorks = false
     @Published var ollamaConnected: Bool = false
     @Published var availableModels: [OllamaModel] = []
     @Published var processingState: ProcessingState = .idle
     @Published var showToast: Bool = false
     @Published var toastMessage: String = ""
+    @Published var jumpToPage: Int? = nil
+    @Published var showSidebar: Bool = true
 
     // MARK: - Document Management
 
     func loadDocument(_ doc: ChatDocument) {
-        currentDocument = doc
-        if !documents.contains(where: { $0.id == doc.id }) {
-            documents.append(doc)
+        // Clear old embeddings if switching documents
+        if let old = currentDocument, old.id != doc.id {
+            RAGEngine.shared.clearDocument(old.id)
         }
+        currentDocument = doc
+        // Persist to recents, avoid duplicates
+        var recents = recentDocuments.filter { $0.id != doc.id }
+        recents.insert(doc, at: 0)
+        recentDocuments = Array(recents.prefix(10))
+
+        messages.removeAll()
+        processingState = .idle
+        Task { await processDocument(doc) }
+    }
+
+    func switchDocument(_ doc: ChatDocument) {
+        // Switch without re-processing if already embedded
+        if let old = currentDocument, old.id != doc.id {
+            RAGEngine.shared.clearDocument(old.id)
+        }
+        currentDocument = doc
         messages.removeAll()
         processingState = .idle
         Task { await processDocument(doc) }
@@ -47,22 +85,22 @@ final class AppState: ObservableObject {
 
     @MainActor
     func processDocument(_ doc: ChatDocument) async {
-        guard let url = doc.url else { return }
+        guard let url = doc.url else {
+            processingState = .failed("Cannot access file. Please re-open it.")
+            return
+        }
 
         processingState = .extracting
         do {
-            // Step 1: Extract text
             let pages = try RAGEngine.shared.extractText(from: url)
             guard !pages.isEmpty else {
                 processingState = .failed("No readable text found in this document.")
                 return
             }
 
-            // Step 2: Chunk
             processingState = .embedding(progress: 0)
             var chunks = RAGEngine.shared.createChunks(pages: pages)
 
-            // Step 3: Embed (if model set)
             if !embeddingModel.isEmpty {
                 try await RAGEngine.shared.embedChunks(
                     docID: doc.id,
@@ -72,10 +110,13 @@ final class AppState: ObservableObject {
                 ) { [weak self] p in
                     self?.processingState = .embedding(progress: p)
                 }
+            } else {
+                // Store chunks without embeddings for keyword fallback
+                RAGEngine.shared.storeChunksWithoutEmbeddings(docID: doc.id, chunks: chunks)
             }
 
             processingState = .ready
-            showToastMessage("Document ready for questions ✓")
+            showToastMessage("✓ Document ready for questions")
         } catch {
             processingState = .failed("Processing failed: \(error.localizedDescription)")
         }
@@ -87,7 +128,6 @@ final class AppState: ObservableObject {
         let userMsg = ChatMessage(role: .user, content: text)
         messages.append(userMsg)
         isStreaming = true
-
         Task { await performRAGChat(userQuestion: text) }
     }
 
@@ -95,7 +135,6 @@ final class AppState: ObservableObject {
     private func performRAGChat(userQuestion: String) async {
         guard let doc = currentDocument else { return }
 
-        // Placeholder assistant message for streaming
         let assistantID = UUID()
         messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", isStreaming: true))
 
@@ -107,22 +146,25 @@ final class AppState: ObservableObject {
                     for: userQuestion,
                     docID: doc.id,
                     baseURL: ollamaURL,
-                    model: embeddingModel
+                    model: embeddingModel,
+                    topK: 8
                 )
             } else {
-                chunks = []
+                chunks = RAGEngine.shared.keywordRetrieve(for: userQuestion, docID: doc.id, topK: 8)
             }
 
             let systemPrompt = RAGEngine.shared.buildSystemPrompt(
                 chunks: chunks,
                 documentName: doc.name
             )
-            let sourcePage = chunks.first?.pageNumber
+            let sourcePages = Array(Set(chunks.map { $0.pageNumber })).sorted()
+            let primaryPage = chunks.first?.pageNumber
 
             var fullResponse = ""
+            let modelName = selectedModel.isEmpty ? "llama3.2" : selectedModel
             try await OllamaService.shared.streamChat(
                 baseURL: ollamaURL,
-                model: selectedModel.isEmpty ? "llama3.2" : selectedModel,
+                model: modelName,
                 systemPrompt: systemPrompt,
                 userMessage: userQuestion
             ) { [weak self] token in
@@ -133,19 +175,20 @@ final class AppState: ObservableObject {
                         id: assistantID,
                         role: .assistant,
                         content: fullResponse,
-                        sourcePage: sourcePage,
+                        sourcePage: primaryPage,
+                        sourcePages: sourcePages,
                         isStreaming: true
                     )
                 }
             }
 
-            // Finalize
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                 messages[idx] = ChatMessage(
                     id: assistantID,
                     role: .assistant,
                     content: fullResponse,
-                    sourcePage: sourcePage,
+                    sourcePage: primaryPage,
+                    sourcePages: sourcePages,
                     isStreaming: false
                 )
             }
@@ -154,7 +197,7 @@ final class AppState: ObservableObject {
                 messages[idx] = ChatMessage(
                     id: assistantID,
                     role: .assistant,
-                    content: "⚠️ Error: \(error.localizedDescription)",
+                    content: "⚠️ \(error.localizedDescription)",
                     isStreaming: false
                 )
             }
@@ -191,7 +234,7 @@ final class AppState: ObservableObject {
 
     func showToastMessage(_ msg: String) {
         toastMessage = msg
-        showToast = true
+        withAnimation(.spring(response: 0.4)) { showToast = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             withAnimation { self?.showToast = false }
         }

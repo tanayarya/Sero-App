@@ -3,43 +3,46 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
     @State private var isTestingConnection = false
     @State private var connectionResult: Bool? = nil
+    @State private var urlDraft: String = ""
+
+    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            settingsHeader
             Divider()
             settingsContent
             Divider()
-            footer
+            settingsFooter
         }
-        .frame(width: 460, height: 420)
-        .background(Color.surfacePrimary)
-        .onAppear { appState.fetchModels() }
+        .frame(width: 480, height: 440)
+        .onAppear {
+            urlDraft = appState.ollamaURL
+            appState.fetchModels()
+        }
     }
 
     // MARK: - Header
-
     @ViewBuilder
-    private var header: some View {
+    private var settingsHeader: some View {
         HStack {
             Label("Settings", systemImage: "gearshape.fill")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.textPrimary)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(Color.textTertiary)
+                    .foregroundStyle(Color.secondary)
             }
             .buttonStyle(.plain)
         }
-        .padding(16)
+        .padding(18)
     }
 
     // MARK: - Content
-
     @ViewBuilder
     private var settingsContent: some View {
         Form {
@@ -54,13 +57,17 @@ struct SettingsView: View {
     @ViewBuilder
     private var ollamaSection: some View {
         Section {
-            HStack {
-                TextField("http://localhost:11434", text: $appState.ollamaURL)
+            HStack(spacing: 8) {
+                // Native macOS text field
+                TextField("http://localhost:11434", text: $urlDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13, design: .monospaced))
-                    .onSubmit { appState.fetchModels() }
-                connectionStatusBadge
+                    .onSubmit { commitURL() }
+
+                connectionIndicator
+
                 Button(isTestingConnection ? "Testing…" : "Test") {
+                    commitURL()
                     testConnection()
                 }
                 .controlSize(.small)
@@ -69,21 +76,21 @@ struct SettingsView: View {
         } header: {
             Text("Ollama Server URL")
         } footer: {
-            Text("Default: http://localhost:11434 — your settings are saved automatically.")
+            Text("Default: http://localhost:11434  •  Your URL is saved automatically when you press Return or click Test.")
                 .font(.system(size: 11))
-                .foregroundStyle(Color.textTertiary)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
-    private var connectionStatusBadge: some View {
+    private var connectionIndicator: some View {
         if let result = connectionResult {
             Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(result ? Color.successGreen : Color.errorRed)
-        } else if appState.ollamaConnected {
-            Circle().fill(Color.successGreen).frame(width: 8, height: 8)
+                .foregroundStyle(result ? Color.green : Color.red)
         } else {
-            Circle().fill(Color.errorRed).frame(width: 8, height: 8)
+            Circle()
+                .fill(appState.ollamaConnected ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
         }
     }
 
@@ -91,11 +98,11 @@ struct SettingsView: View {
     private var modelsSection: some View {
         Section {
             if appState.availableModels.isEmpty {
-                HStack {
+                HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("No models detected. Make sure Ollama is running and has models installed.")
+                    Text("No models detected. Make sure Ollama is running.")
                         .font(.system(size: 12))
-                        .foregroundStyle(Color.textSecondary)
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 Picker("Chat Model", selection: $appState.selectedModel) {
@@ -112,9 +119,9 @@ struct SettingsView: View {
         } header: {
             Text("AI Models")
         } footer: {
-            Text("Models are fetched from your Ollama instance. Install models via: ollama pull nomic-embed-text")
+            Text("Models are fetched from your Ollama instance. Recommended: llama3.2 for chat, nomic-embed-text for embeddings.\nInstall via: ollama pull nomic-embed-text")
                 .font(.system(size: 11))
-                .foregroundStyle(Color.textTertiary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -131,22 +138,29 @@ struct SettingsView: View {
     }
 
     // MARK: - Footer
-
     @ViewBuilder
-    private var footer: some View {
+    private var settingsFooter: some View {
         HStack {
             Button("Refresh Models") { appState.fetchModels() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             Spacer()
-            Button("Done") { dismiss() }
+            Button("Done") { commitURL(); dismiss() }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.appAccent)
+                .tint(Color(red: 0.039, green: 0.518, blue: 1))
         }
         .padding(16)
     }
 
-    // MARK: - Connection Test
+    // MARK: - Helpers
+
+    private func commitURL() {
+        let trimmed = urlDraft.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            appState.ollamaURL = trimmed
+            appState.fetchModels()
+        }
+    }
 
     private func testConnection() {
         isTestingConnection = true
@@ -158,9 +172,7 @@ struct SettingsView: View {
                 appState.ollamaConnected = result
                 isTestingConnection = false
                 if result { appState.fetchModels() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    connectionResult = nil
-                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { connectionResult = nil }
             }
         }
     }

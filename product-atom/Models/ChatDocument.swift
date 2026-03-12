@@ -1,13 +1,19 @@
 import Foundation
 
-struct ChatDocument: Identifiable, Hashable {
+struct ChatDocument: Identifiable, Hashable, Codable {
     let id: UUID
     let name: String
     let fileType: DocFileType
     let dateAdded: Date
     let pageCount: Int
     let fileSize: String
-    let url: URL?
+    let urlBookmark: Data?
+
+    var url: URL? {
+        guard let bookmark = urlBookmark else { return nil }
+        var stale = false
+        return try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)
+    }
 
     init(
         id: UUID = UUID(),
@@ -24,11 +30,15 @@ struct ChatDocument: Identifiable, Hashable {
         self.dateAdded = dateAdded
         self.pageCount = pageCount
         self.fileSize = fileSize
-        self.url = url
+        if let u = url {
+            self.urlBookmark = try? u.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        } else {
+            self.urlBookmark = nil
+        }
     }
 }
 
-enum DocFileType: String, CaseIterable {
+enum DocFileType: String, CaseIterable, Codable {
     case pdf, txt, markdown
 
     var icon: String {

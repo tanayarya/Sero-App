@@ -1,13 +1,15 @@
 import SwiftUI
+import AppKit
 
 // MARK: - Chat Panel
 
 struct ChatPanel: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) var colorScheme
     @State private var inputText: String = ""
-    @State private var inputFocused: Bool = false
-    @FocusState private var textFieldFocused: Bool
-    @State private var scrollProxy: ScrollViewProxy? = nil
+    @FocusState private var isInputFocused: Bool
+
+    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,27 +19,37 @@ struct ChatPanel: View {
             Divider()
             inputBar
         }
-        .background(Color.surfaceChat)
-        .onAppear { textFieldFocused = true }
+        .background(isDark ? Color(red: 0.11, green: 0.11, blue: 0.12) : Color(red: 0.97, green: 0.97, blue: 0.98))
+        .onReceive(NotificationCenter.default.publisher(for: .focusChatInput)) { _ in
+            isInputFocused = true
+        }
     }
 
     // MARK: - Toolbar
-
     @ViewBuilder
     private var chatToolbar: some View {
-        HStack {
-            Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
+        HStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.system(size: 12))
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+            Text("Chat")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.textPrimary)
+                .foregroundStyle(isDark ? Color(red: 0.902, green: 0.906, blue: 0.91) : Color(red: 0.2, green: 0.2, blue: 0.2))
             Spacer()
             processingStatus
-            Button { appState.clearChat() } label: {
-                Image(systemName: "trash").font(.system(size: 12))
+            if !appState.messages.isEmpty {
+                Button {
+                    appState.clearChat()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                }
+                .buttonStyle(.plain)
+                .help("Clear chat")
             }
-            .buttonStyle(.borderless)
-            .disabled(appState.messages.isEmpty)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 10)
     }
 
@@ -45,29 +57,33 @@ struct ChatPanel: View {
     private var processingStatus: some View {
         switch appState.processingState {
         case .ready:
-            Label("Ready", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.successGreen)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Color.successGreen.opacity(0.12))
-                .clipShape(Capsule())
+            HStack(spacing: 4) {
+                Circle().fill(Color(red: 0.157, green: 0.784, blue: 0.251)).frame(width: 5, height: 5)
+                Text("Ready")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color(red: 0.157, green: 0.784, blue: 0.251))
+            }
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Color(red: 0.157, green: 0.784, blue: 0.251).opacity(0.12))
+            .clipShape(Capsule())
         case .failed(let msg):
-            Label(msg, systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(Color.errorRed)
+            Text(msg)
+                .font(.system(size: 10))
+                .foregroundStyle(Color(red: 1, green: 0.373, blue: 0.341))
                 .lineLimit(1)
         case .extracting, .embedding:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
-                Text("Processing…").font(.system(size: 11)).foregroundStyle(Color.textSecondary)
+                Text("Processing…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
             }
         case .idle:
             EmptyView()
         }
     }
 
-    // MARK: - Messages
-
+    // MARK: - Messages Area
     @ViewBuilder
     private var messagesArea: some View {
         if appState.messages.isEmpty {
@@ -75,18 +91,22 @@ struct ChatPanel: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: 6) {
                         ForEach(appState.messages) { msg in
                             MessageBubbleView(message: msg)
                                 .id(msg.id)
                         }
-                        if appState.isStreaming && appState.messages.last?.role != .assistant {
-                            TypingIndicatorView()
+                        if appState.isStreaming {
+                            let lastIsAssistant = appState.messages.last?.role == .assistant
+                            if !lastIsAssistant || (appState.messages.last?.content.isEmpty ?? true) {
+                                TypingIndicatorView()
+                                    .id("typing")
+                            }
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
                 }
                 .onChange(of: appState.messages.count) { _ in
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -100,21 +120,17 @@ struct ChatPanel: View {
 
     @ViewBuilder
     private var emptyChatState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             Spacer()
             Image(systemName: "text.bubble")
-                .font(.system(size: 38))
-                .foregroundStyle(Color.chatBubbleAI.opacity(0.5))
+                .font(.system(size: 36))
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.5))
             Text(appState.currentDocument != nil ? "Ask a question about your document" : "Open a document to start chatting")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color.textSecondary)
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                .multilineTextAlignment(.center)
             if appState.currentDocument != nil && appState.processingState == .ready {
-                VStack(spacing: 6) {
-                    suggestChip("Summarize the key points")
-                    suggestChip("What are the main topics?")
-                    suggestChip("List the conclusions or findings")
-                    suggestChip("Explain in simple terms")
-                }
+                suggestionsGrid
             }
             Spacer()
         }
@@ -122,45 +138,68 @@ struct ChatPanel: View {
     }
 
     @ViewBuilder
-    private func suggestChip(_ text: String) -> some View {
-        Button { inputText = text; textFieldFocused = true } label: {
-            Text(text)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.chatBubbleAI)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Color.chatBubbleAI.opacity(0.12))
-                .clipShape(Capsule())
+    private var suggestionsGrid: some View {
+        VStack(spacing: 6) {
+            ForEach(suggestionChips, id: \.self) { chip in
+                Button {
+                    inputText = chip
+                    isInputFocused = true
+                } label: {
+                    Text(chip)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.1))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.25), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
     }
 
-    // MARK: - Input Bar
+    private let suggestionChips = [
+        "Summarize the key points",
+        "What are the main topics?",
+        "List the conclusions or findings"
+    ]
 
+    // MARK: - Input Bar
     @ViewBuilder
     private var inputBar: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .bottom, spacing: 10) {
-                MultilineTextField(text: $inputText, isFocused: $textFieldFocused) {
-                    sendMessage()
-                }
+        VStack(spacing: 6) {
+            HStack(alignment: .bottom, spacing: 8) {
+                MultilineTextField(
+                    text: $inputText,
+                    isFocused: _isInputFocused,
+                    placeholder: "Ask a question… (/ to focus)",
+                    onSubmit: sendMessage
+                )
                 .frame(minHeight: 36, maxHeight: 120)
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color.surfaceSecondary)
+                .background(isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 Button { sendMessage() } label: {
                     Image(systemName: appState.isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(canSend ? Color.chatBubbleAI : Color.textTertiary)
+                        .font(.system(size: 28))
+                        .foregroundStyle(
+                            canSend
+                                ? Color(red: 0.039, green: 0.518, blue: 1)
+                                : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.4)
+                        )
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
+            .padding(.horizontal, 12).padding(.vertical, 8)
 
-            Text("Shift+Return for new line  •  / to focus")
+            Text("⇧ Return for new line  •  / to focus")
                 .font(.system(size: 10))
-                .foregroundStyle(Color.textTertiary)
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.6))
                 .padding(.bottom, 8)
         }
     }
@@ -174,16 +213,17 @@ struct ChatPanel: View {
         guard !trimmed.isEmpty, !appState.isStreaming else { return }
         inputText = ""
         appState.sendMessage(trimmed)
-        textFieldFocused = true
+        isInputFocused = true
     }
 }
 
-// MARK: - Multiline TextField
+// MARK: - Multiline TextField (NSViewRepresentable) — FIXED
 
 struct MultilineTextField: NSViewRepresentable {
     @Binding var text: String
-    @Binding var isFocused: Bool
-    var onSubmit: () -> Void
+    @FocusState var isFocused: Bool
+    let placeholder: String
+    let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -197,7 +237,7 @@ struct MultilineTextField: NSViewRepresentable {
         tv.drawsBackground = false
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
-        tv.textContainerInset = .init(width: 0, height: 2)
+        tv.textContainerInset = NSSize(width: 0, height: 2)
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         context.coordinator.textView = tv
@@ -207,8 +247,8 @@ struct MultilineTextField: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let tv = scrollView.documentView as? NSTextView else { return }
         if tv.string != text { tv.string = text }
-        if isFocused { tv.window?.makeFirstResponder(tv) }
-        tv.textColor = NSColor(Color.textPrimary)
+        tv.textColor = NSColor.labelColor
+        // Handle global "/" key press for focus via notification — no FocusState.Binding needed
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
@@ -222,18 +262,17 @@ struct MultilineTextField: NSViewRepresentable {
             parent.text = tv.string
         }
 
-        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            // Enter sends, Shift+Enter inserts newline
+        func textView(_ tv: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                let shiftDown = NSEvent.modifierFlags.contains(.shift)
-                if shiftDown {
-                    textView.insertNewlineIgnoringFieldEditor(nil)
+                if NSEvent.modifierFlags.contains(.shift) {
+                    tv.insertNewlineIgnoringFieldEditor(nil)
                     return true
                 } else {
                     parent.onSubmit()
                     return true
                 }
             }
+            // "/" key focuses when field is not first responder via notification
             return false
         }
     }
@@ -242,10 +281,11 @@ struct MultilineTextField: NSViewRepresentable {
 // MARK: - Message Bubble
 
 struct MessageBubbleView: View {
+    @EnvironmentObject var appState: AppState
     let message: ChatMessage
     @Environment(\.colorScheme) var colorScheme
-
-    var isUser: Bool { message.role == .user }
+    private var isDark: Bool { colorScheme == .dark }
+    private var isUser: Bool { message.role == .user }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
@@ -253,8 +293,8 @@ struct MessageBubbleView: View {
             if !isUser { aiAvatar }
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
                 bubbleBody
-                if let page = message.sourcePage, !isUser {
-                    pageCitation(page)
+                if !message.sourcePages.isEmpty && !isUser {
+                    pageReferences
                 }
             }
             if !isUser { Spacer(minLength: 44) }
@@ -265,11 +305,11 @@ struct MessageBubbleView: View {
     private var aiAvatar: some View {
         ZStack {
             Circle()
-                .fill(Color.chatBubbleAI.opacity(0.15))
+                .fill(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.15))
                 .frame(width: 26, height: 26)
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.chatBubbleAI)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1))
         }
         .alignmentGuide(.bottom) { d in d[.bottom] }
     }
@@ -281,28 +321,41 @@ struct MessageBubbleView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 13).padding(.vertical, 9)
-                .background(Color.chatBubbleUser)
-                .clipShape(BubbleShape(isUser: true))
+                .background(Color(red: 0.157, green: 0.784, blue: 0.251))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
         } else {
             FormattedResponseView(text: message.content, isStreaming: message.isStreaming)
                 .padding(.horizontal, 13).padding(.vertical, 9)
-                .background(Color.chatBubbleAIBg)
-                .clipShape(BubbleShape(isUser: false))
+                .background(isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 
     @ViewBuilder
-    private func pageCitation(_ page: Int) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: "doc.text").font(.system(size: 9))
-            Text("Page \(page)").font(.system(size: 10))
+    private var pageReferences: some View {
+        HStack(spacing: 4) {
+            Text("Sources:")
+                .font(.system(size: 10))
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+            ForEach(message.sourcePages, id: \.self) { page in
+                Button {
+                    appState.jumpToPage = page
+                } label: {
+                    Text("p.\(page)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .foregroundStyle(Color.textTertiary)
         .padding(.leading, 34)
     }
 }
 
-// MARK: - Formatted Response View (Markdown-aware)
+// MARK: - Formatted Response View
 
 struct FormattedResponseView: View {
     let text: String
@@ -310,31 +363,27 @@ struct FormattedResponseView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if let attributed = try? AttributedString(markdown: text) {
+            if let attributed = try? AttributedString(markdown: text,
+               options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
                 Text(attributed)
                     .font(.system(size: 13))
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(Color.primary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(text)
                     .font(.system(size: 13))
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(Color.primary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if isStreaming && !text.isEmpty {
-                streamingCursor
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color(red: 0.039, green: 0.518, blue: 1))
+                    .frame(width: 6, height: 13)
+                    .opacity(0.8)
             }
         }
-    }
-
-    @ViewBuilder
-    private var streamingCursor: some View {
-        RoundedRectangle(cornerRadius: 1)
-            .fill(Color.chatBubbleAI)
-            .frame(width: 6, height: 14)
-            .opacity(0.8)
     }
 }
 
@@ -342,31 +391,35 @@ struct FormattedResponseView: View {
 
 struct TypingIndicatorView: View {
     @State private var phase = 0
+    @Environment(\.colorScheme) var colorScheme
+    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(Color.chatBubbleAI.opacity(0.15))
+                    .fill(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.15))
                     .frame(width: 26, height: 26)
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.chatBubbleAI)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1))
             }
             HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
-                        .fill(Color.chatBubbleAI.opacity(phase == i ? 1.0 : 0.3))
+                        .fill(Color(red: 0.039, green: 0.518, blue: 1).opacity(phase == i ? 0.9 : 0.25))
                         .frame(width: 6, height: 6)
-                        .animation(.easeInOut(duration: 0.4).repeatForever().delay(Double(i) * 0.15), value: phase)
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Color.chatBubbleAIBg)
-            .clipShape(BubbleShape(isUser: false))
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             Spacer()
         }
         .onAppear {
+            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: false)) {
+                phase = 2
+            }
             Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
                 phase = (phase + 1) % 3
             }
@@ -374,38 +427,8 @@ struct TypingIndicatorView: View {
     }
 }
 
-// MARK: - Bubble Shape
+// MARK: - Notification extension for "/" focus
 
-struct BubbleShape: Shape {
-    let isUser: Bool
-    let radius: CGFloat = 16
-    let tail: CGFloat = 6
-
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let (minX, maxX, minY, maxY) = (rect.minX, rect.maxX, rect.minY, rect.maxY)
-        if isUser {
-            p.move(to: CGPoint(x: minX + radius, y: minY))
-            p.addLine(to: CGPoint(x: maxX - radius, y: minY))
-            p.addQuadCurve(to: CGPoint(x: maxX, y: minY + radius), control: CGPoint(x: maxX, y: minY))
-            p.addLine(to: CGPoint(x: maxX, y: maxY - tail - radius))
-            p.addQuadCurve(to: CGPoint(x: maxX - radius, y: maxY - tail), control: CGPoint(x: maxX, y: maxY - tail))
-            p.addLine(to: CGPoint(x: minX + radius, y: maxY))
-            p.addQuadCurve(to: CGPoint(x: minX, y: maxY - radius), control: CGPoint(x: minX, y: maxY))
-            p.addLine(to: CGPoint(x: minX, y: minY + radius))
-            p.addQuadCurve(to: CGPoint(x: minX + radius, y: minY), control: CGPoint(x: minX, y: minY))
-        } else {
-            p.move(to: CGPoint(x: minX + radius, y: minY))
-            p.addLine(to: CGPoint(x: maxX - radius, y: minY))
-            p.addQuadCurve(to: CGPoint(x: maxX, y: minY + radius), control: CGPoint(x: maxX, y: minY))
-            p.addLine(to: CGPoint(x: maxX, y: maxY - radius))
-            p.addQuadCurve(to: CGPoint(x: maxX - radius, y: maxY), control: CGPoint(x: maxX, y: maxY))
-            p.addLine(to: CGPoint(x: minX + radius, y: maxY))
-            p.addQuadCurve(to: CGPoint(x: minX, y: maxY - radius), control: CGPoint(x: minX, y: maxY))
-            p.addLine(to: CGPoint(x: minX, y: minY + tail + radius))
-            p.addQuadCurve(to: CGPoint(x: minX + radius, y: minY), control: CGPoint(x: minX, y: minY))
-        }
-        p.closeSubpath()
-        return p
-    }
+extension Notification.Name {
+    static let focusChatInput = Notification.Name("focusChatInput")
 }
