@@ -74,7 +74,13 @@ struct ChatPanel: View {
     @ViewBuilder
     private var messagesArea: some View {
         if appState.messages.isEmpty {
-            emptyChatState
+            VStack(spacing: 0) {
+                emptyChatState
+                if appState.currentDocument != nil {
+                    suggestionsRowInline
+                        .padding(.bottom, 16)
+                }
+            }
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -87,10 +93,10 @@ struct ChatPanel: View {
                     }
                     .padding(.horizontal, 20).padding(.vertical, 20)
                 }
-                .onChange(of: appState.messages.count) { _ in
+                .onChange(of: appState.messages.count) { _, _ in
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
-                .onChange(of: appState.messages.last?.content) { _ in
+                .onChange(of: appState.messages.last?.content) { _, _ in
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
@@ -126,16 +132,43 @@ struct ChatPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Suggestions chips row (shown in empty state + input area)
+    @ViewBuilder
+    private var suggestionsRowInline: some View {
+        let chips = ["Summarize this document", "Find key risks", "Explain main topics"]
+        VStack(spacing: 8) {
+            ForEach(chips, id: \.self) { chip in
+                Button {
+                    inputText = ""
+                    appState.sendMessage(chip)
+                } label: {
+                    Text(chip)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
+                        .overlay(RoundedRectangle(cornerRadius: 100)
+                            .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 100))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
     // MARK: - Input Section
     @ViewBuilder
     private var inputSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             inputField
-            if appState.currentDocument != nil && appState.processingState == .ready {
+            // Show horizontal chips below input only when messages exist (otherwise vertical ones shown in empty state)
+            if appState.currentDocument != nil && !appState.messages.isEmpty {
                 suggestionsRow
             }
         }
-        .padding(.top, 12)
+        .padding(.top, 10)
         .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
         .overlay(alignment: .top) {
             Rectangle().fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)).frame(height: 1)

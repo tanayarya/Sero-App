@@ -1,5 +1,9 @@
 import Foundation
 
+// MARK: - ChatDocument
+// urlBookmark stores a security-scoped bookmark for persistence.
+// The LIVE url (with active scope) is held by AppState.activeDocumentURL.
+
 struct ChatDocument: Identifiable, Hashable, Codable {
     let id: UUID
     let name: String
@@ -9,10 +13,17 @@ struct ChatDocument: Identifiable, Hashable, Codable {
     let fileSize: String
     let urlBookmark: Data?
 
-    var url: URL? {
+    // Resolve bookmark → URL (caller must startAccessingSecurityScopedResource)
+    var bookmarkURL: URL? {
         guard let bookmark = urlBookmark else { return nil }
         var stale = false
-        return try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)
+        let url = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        )
+        return url
     }
 
     init(
@@ -31,7 +42,11 @@ struct ChatDocument: Identifiable, Hashable, Codable {
         self.pageCount = pageCount
         self.fileSize = fileSize
         if let u = url {
-            self.urlBookmark = try? u.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+            self.urlBookmark = try? u.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
         } else {
             self.urlBookmark = nil
         }
@@ -54,14 +69,6 @@ enum DocFileType: String, CaseIterable, Codable {
         case .pdf: return "PDF"
         case .txt: return "TXT"
         case .markdown: return "Markdown"
-        }
-    }
-
-    var tintColor: String {
-        switch self {
-        case .pdf: return "docPDF"
-        case .txt: return "docTXT"
-        case .markdown: return "docMD"
         }
     }
 }

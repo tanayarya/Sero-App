@@ -159,7 +159,8 @@ struct HeaderBar: View {
             let size = fileSizeStr(url: url)
             let pages = ext == "pdf" ? (PDFDocument(url: url)?.pageCount ?? 1) : 1
             let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, pageCount: pages, fileSize: size, url: url)
-            DispatchQueue.main.async { appState.loadDocument(doc) }
+            // CRITICAL: pass liveURL so AppState doesn't try bookmark (which fails for fresh files)
+            DispatchQueue.main.async { appState.loadDocument(doc, liveURL: url) }
         }
     }
 

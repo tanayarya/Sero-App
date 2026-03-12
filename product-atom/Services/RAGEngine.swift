@@ -11,13 +11,6 @@ struct DocumentChunk: Identifiable {
     var embedding: [Float] = []
 }
 
-// MARK: - Chunk Cache Entry
-
-private struct CachedDoc {
-    var chunks: [DocumentChunk]
-    let docID: UUID
-}
-
 // MARK: - RAG Engine
 
 final class RAGEngine {
@@ -27,11 +20,10 @@ final class RAGEngine {
     private var chunkStore: [UUID: [DocumentChunk]] = [:]
 
     // MARK: - Text Extraction
+    // alreadyScoped = true means the caller already started security-scoped access.
 
-    func extractText(from url: URL) throws -> [(page: Int, text: String)] {
-        let accessing = url.startAccessingSecurityScopedResource()
-        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-
+    func extractText(from url: URL, alreadyScoped: Bool = false) throws -> [(page: Int, text: String)] {
+        // AppState always manages scope — we never call startAccessingSecurityScopedResource here.
         let ext = url.pathExtension.lowercased()
         switch ext {
         case "pdf":
@@ -40,15 +32,18 @@ final class RAGEngine {
             let raw = try String(contentsOf: url, encoding: .utf8)
             return extractMarkdownPages(raw)
         default:
-            let raw = try String(contentsOf: url, encoding: .utf8)
-            return extractTextPages(raw)
+            if let utf8 = try? String(contentsOf: url, encoding: .utf8) {
+                return extractTextPages(utf8)
+            }
+            let latin = try String(contentsOf: url, encoding: .isoLatin1)
+            return extractTextPages(latin)
         }
     }
 
-    // Extract PDF - merge small pages, preserve paragraph structure
     private func extractPDFText(url: URL) throws -> [(page: Int, text: String)] {
         guard let doc = PDFDocument(url: url) else {
-            throw NSError(domain: "RAG", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot open PDF"])
+            throw NSError(domain: "RAG", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Cannot open PDF — check file permissions"])
         }
         var pages: [(page: Int, text: String)] = []
         var pendingText = ""
@@ -64,7 +59,6 @@ final class RAGEngine {
                 pendingText = cleaned
                 pendingStart = i + 1
             } else if cleaned.count < 400 {
-                // Merge small pages with previous
                 pendingText += " " + cleaned
             } else {
                 pages.append((page: pendingStart, text: pendingText))
@@ -79,19 +73,16 @@ final class RAGEngine {
     }
 
     private func extractTextPages(_ text: String) -> [(page: Int, text: String)] {
-        let paragraphs = text
+        let paras = text
             .components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.count > 20 }
-        // Group paragraphs into ~3000 char pages
         var pages: [(page: Int, text: String)] = []
-        var current = ""
-        var pageNum = 1
-        for para in paragraphs {
+        var current = ""; var pageNum = 1
+        for para in paras {
             if current.count + para.count > 3000 && !current.isEmpty {
                 pages.append((page: pageNum, text: current))
-                pageNum += 1
-                current = para
+                pageNum += 1; current = para
             } else {
                 current += current.isEmpty ? para : "\n\n" + para
             }
@@ -101,12 +92,10 @@ final class RAGEngine {
     }
 
     private func extractMarkdownPages(_ text: String) -> [(page: Int, text: String)] {
-        // Split on ## headings as logical pages
         let sections = text.components(separatedBy: "\n## ")
         if sections.count > 1 {
             return sections.enumerated().map { i, s in
-                let cleaned = cleanText(i == 0 ? s : "## " + s)
-                return (page: i + 1, text: cleaned)
+                (page: i + 1, text: cleanText(i == 0 ? s : "## " + s))
             }.filter { !$0.text.isEmpty }
         }
         return extractTextPages(cleanText(text))
@@ -123,7 +112,7 @@ final class RAGEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Chunking (2400 chars, ~400 char overlap, paragraph-aware)
+    // MARK: - Chunking (~2400 chars, ~400 overlap, sentence-aware)
 
     func createChunks(pages: [(page: Int, text: String)]) -> [DocumentChunk] {
         let targetChars = 2400
@@ -142,17 +131,14 @@ final class RAGEngine {
             for sentence in sentences {
                 let candidate = current + (current.isEmpty ? "" : " ") + sentence
                 if candidate.count > targetChars && !current.isEmpty {
-                    // Save current chunk
                     if current.count > 100 {
                         chunks.append(DocumentChunk(
-                            id: UUID(),
-                            text: current,
-                            pageNumber: pageNum,
-                            chunkIndex: chunkIndex
+                            id: UUID(), text: current,
+                            pageNumber: pageNum, chunkIndex: chunkIndex
                         ))
                         chunkIndex += 1
                     }
-                    // Build overlap from tail of sentenceBuffer
+                    // Build overlap from tail of sentence buffer
                     var overlapText = ""
                     for s in sentenceBuffer.reversed() {
                         let attempt = s + " " + overlapText
@@ -169,10 +155,8 @@ final class RAGEngine {
             }
             if current.count > 100 {
                 chunks.append(DocumentChunk(
-                    id: UUID(),
-                    text: current,
-                    pageNumber: pageNum,
-                    chunkIndex: chunkIndex
+                    id: UUID(), text: current,
+                    pageNumber: pageNum, chunkIndex: chunkIndex
                 ))
                 chunkIndex += 1
             }
@@ -183,10 +167,9 @@ final class RAGEngine {
     private func splitIntoSentences(_ text: String) -> [String] {
         var sentences: [String] = []
         var current = ""
-        let terminators: Set<Character> = [".", "!", "?", "\n"]
         for char in text {
             current.append(char)
-            if terminators.contains(char) && current.count > 40 {
+            if (char == "." || char == "!" || char == "?") && current.count > 40 {
                 sentences.append(current.trimmingCharacters(in: .whitespaces))
                 current = ""
             }
@@ -209,9 +192,7 @@ final class RAGEngine {
         let total = Double(chunks.count)
         for i in 0..<chunks.count {
             let embedding = try await OllamaService.shared.generateEmbedding(
-                baseURL: baseURL,
-                model: model,
-                text: chunks[i].text
+                baseURL: baseURL, model: model, text: chunks[i].text
             )
             chunks[i].embedding = embedding
             let p = Double(i + 1) / total
@@ -224,11 +205,7 @@ final class RAGEngine {
         chunkStore[docID] = chunks
     }
 
-    func hasDocument(_ docID: UUID) -> Bool {
-        chunkStore[docID] != nil
-    }
-
-    // MARK: - Semantic Retrieval
+    // MARK: - Retrieval
 
     func retrieveRelevantChunks(
         for query: String,
@@ -238,8 +215,8 @@ final class RAGEngine {
         topK: Int = 8
     ) async throws -> [DocumentChunk] {
         guard let chunks = chunkStore[docID], !chunks.isEmpty else { return [] }
-        let embeddedChunks = chunks.filter { !$0.embedding.isEmpty }
-        guard !embeddedChunks.isEmpty else {
+        let embedded = chunks.filter { !$0.embedding.isEmpty }
+        guard !embedded.isEmpty else {
             return keywordRetrieve(for: query, docID: docID, topK: topK)
         }
 
@@ -247,33 +224,27 @@ final class RAGEngine {
             baseURL: baseURL, model: model, text: query
         )
 
-        let scored = embeddedChunks.map { chunk -> (DocumentChunk, Float) in
+        let scored = embedded.map { chunk -> (DocumentChunk, Float) in
             (chunk, cosineSimilarity(queryEmbed, chunk.embedding))
         }
         let topChunks = scored.sorted { $0.1 > $1.1 }.prefix(topK).map { $0.0 }
-
-        // Include adjacent chunks for context continuity
-        let expanded = expandWithNeighbors(topChunks, allChunks: chunks)
+        let expanded = expandWithNeighbors(Array(topChunks), allChunks: chunks)
         return expanded.sorted { ($0.pageNumber, $0.chunkIndex) < ($1.pageNumber, $1.chunkIndex) }
     }
 
-    // Include immediate neighbors of top chunks for better context
-    private func expandWithNeighbors(_ topChunks: [DocumentChunk], allChunks: [DocumentChunk]) -> [DocumentChunk] {
-        var ids = Set(topChunks.map { $0.id })
-        var result = topChunks
-        for chunk in topChunks {
+    private func expandWithNeighbors(_ top: [DocumentChunk], allChunks: [DocumentChunk]) -> [DocumentChunk] {
+        var ids = Set(top.map { $0.id })
+        var result = top
+        for chunk in top {
             let neighbors = allChunks.filter {
                 abs($0.chunkIndex - chunk.chunkIndex) == 1 && $0.pageNumber == chunk.pageNumber
             }
             for n in neighbors where !ids.contains(n.id) {
-                ids.insert(n.id)
-                result.append(n)
+                ids.insert(n.id); result.append(n)
             }
         }
         return result
     }
-
-    // MARK: - Keyword Fallback
 
     func keywordRetrieve(for query: String, docID: UUID, topK: Int = 8) -> [DocumentChunk] {
         guard let chunks = chunkStore[docID], !chunks.isEmpty else { return [] }
@@ -285,18 +256,13 @@ final class RAGEngine {
         let scored = chunks.map { chunk -> (DocumentChunk, Int) in
             let lower = chunk.text.lowercased()
             let score = keywords.reduce(0) { acc, kw in
-                let count = lower.components(separatedBy: kw).count - 1
-                return acc + count
+                acc + lower.components(separatedBy: kw).count - 1
             }
             return (chunk, score)
         }
-        let sortedScored = scored.sorted { $0.1 > $1.1 }
-        // Fallback: if no keyword matches, use first chunks
-        let topScore = sortedScored.first?.1 ?? 0
-        if topScore == 0 {
-            return Array(chunks.prefix(topK))
-        }
-        return sortedScored.prefix(topK).map { $0.0 }
+        let sorted = scored.sorted { $0.1 > $1.1 }
+        if (sorted.first?.1 ?? 0) == 0 { return Array(chunks.prefix(topK)) }
+        return sorted.prefix(topK).map { $0.0 }
             .sorted { ($0.pageNumber, $0.chunkIndex) < ($1.pageNumber, $1.chunkIndex) }
     }
 
@@ -308,14 +274,8 @@ final class RAGEngine {
 
     func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0 }
-        var dot: Float = 0
-        var normA: Float = 0
-        var normB: Float = 0
-        for i in 0..<a.count {
-            dot  += a[i] * b[i]
-            normA += a[i] * a[i]
-            normB += b[i] * b[i]
-        }
+        var dot: Float = 0; var normA: Float = 0; var normB: Float = 0
+        for i in 0..<a.count { dot += a[i]*b[i]; normA += a[i]*a[i]; normB += b[i]*b[i] }
         let denom = normA.squareRoot() * normB.squareRoot()
         return denom == 0 ? 0 : dot / denom
     }
@@ -325,30 +285,26 @@ final class RAGEngine {
     func buildSystemPrompt(chunks: [DocumentChunk], documentName: String) -> String {
         guard !chunks.isEmpty else {
             return """
-            You are a document assistant. No document context was retrieved.
-            Tell the user: "I couldn't find relevant information in the document for your question."
+            You are a helpful PDF document assistant. No relevant context was found for this question.
+            Say: "I couldn't find relevant information in the document for your question."
             """
         }
 
-        let context = chunks.enumerated().map { i, chunk in
-            "--- [Page \(chunk.pageNumber), Chunk \(chunk.chunkIndex + 1)] ---\n\(chunk.text)"
+        let context = chunks.map { chunk in
+            "--- [Page \(chunk.pageNumber)] ---\n\(chunk.text)"
         }.joined(separator: "\n\n")
 
         return """
-        You are an expert document analyst for "\(documentName)".
+        You are a helpful PDF document assistant. Answer the user's question based on the provided document excerpts.
 
-        STRICT RULES:
-        1. Answer ONLY using the document excerpts provided below.
-        2. If the answer is NOT in the excerpts, respond with exactly:
-           "I couldn't find that information in this document."
-        3. Do NOT generate, assume, or hallucinate information.
-        4. ALWAYS format responses as:
-           - Use **bold** for key terms
-           - Use bullet lists (- item) for multiple points
-           - Use ### headings for major sections when the answer is long
-           - Cite page numbers inline as **(Page X)**
-           - Keep responses concise and scannable
-        5. For page-specific questions, reference only what was retrieved.
+        Rules:
+        1. Only answer based on the provided context
+        2. Always cite page numbers (e.g., "According to page 5...")
+        3. If the answer isn't in the context, say so clearly
+        4. Be concise and accurate
+        5. Use bullet points and **bold** for key terms where appropriate
+
+        Document: \(documentName)
 
         DOCUMENT CONTEXT:
         \(context)
