@@ -11,13 +11,18 @@ struct HeaderBar: View {
     private let gray = Color(red: 0.604, green: 0.627, blue: 0.651)
 
     var body: some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: 72)
-            logoView.padding(.leading, 8)
-            Spacer()
-            if let doc = appState.currentDocument { centerLabel(doc: doc) }
-            Spacer()
-            trailingControls.padding(.trailing, 4)
+        ZStack {
+            // Center doc label
+            if let doc = appState.currentDocument {
+                centerLabel(doc: doc)
+                    .frame(maxWidth: .infinity)
+            }
+            // Logo pinned left, controls pinned right
+            HStack(spacing: 0) {
+                logoView
+                Spacer()
+                trailingControls.padding(.trailing, 4)
+            }
         }
         .frame(height: 52)
         .padding(.horizontal, 20)

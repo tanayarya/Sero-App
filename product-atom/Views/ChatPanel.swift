@@ -236,14 +236,17 @@ struct ChatPanel: View {
     }
 
     private func sendMessage() {
-        let trimmed = inputText.trimmingCharacters(in: .whitespaces)
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !appState.isStreaming else { return }
+        let toSend = trimmed
         inputText = ""
-        appState.sendMessage(trimmed)
+        appState.sendMessage(toSend)
     }
 }
 
-// MARK: - Native Chat Input (proper placeholder, not prefilled text)
+// MARK: - Native Chat Input
+// Uses NSTextView directly. Placeholder is drawn via a separate NSTextField overlay.
+// updateNSView NEVER touches tv.string while the user is editing to prevent cursor/reverse-text bugs.
 
 struct ChatInputField: NSViewRepresentable {
     @Binding var text: String
@@ -252,93 +255,113 @@ struct ChatInputField: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+
+        // --- text view ---
         let scrollView = NSTextView.scrollableTextView()
-        guard let tv = scrollView.documentView as? NSTextView else { return scrollView }
-        tv.delegate = context.coordinator
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+
+        guard let tv = scrollView.documentView as? NSTextView else { return container }
         tv.isRichText = false
         tv.font = .systemFont(ofSize: 13)
         tv.backgroundColor = .clear
         tv.drawsBackground = false
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.isAutomaticTextReplacementEnabled = false
         tv.textContainerInset = NSSize(width: 0, height: 8)
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         tv.textContainer?.widthTracksTextView = true
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = false
+        tv.delegate = context.coordinator
         context.coordinator.textView = tv
-        setupPlaceholder(tv, context: context)
+
+        // --- placeholder label ---
+        let ph = NSTextField(labelWithString: placeholder)
+        ph.translatesAutoresizingMaskIntoConstraints = false
+        ph.font = .systemFont(ofSize: 13)
+        ph.textColor = .placeholderTextColor
+        ph.backgroundColor = .clear
+        ph.isBezeled = false
+        ph.isEditable = false
+        ph.isSelectable = false
+        ph.cell?.lineBreakMode = .byTruncatingTail
+        context.coordinator.placeholderField = ph
+
+        container.addSubview(scrollView)
+        container.addSubview(ph)
+
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            ph.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 5),
+            ph.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -5),
+            ph.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+
+        // Sync initial state
+        if !text.isEmpty {
+            tv.string = text
+            ph.isHidden = true
+        } else {
+            ph.isHidden = false
+        }
+
         NotificationCenter.default.addObserver(
             context.coordinator, selector: #selector(Coordinator.focusFromNotification),
             name: .focusChatInput, object: nil
         )
-        return scrollView
+        return container
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let tv = scrollView.documentView as? NSTextView else { return }
-        let isShowingPlaceholder = context.coordinator.isShowingPlaceholder
-        if text.isEmpty && !isShowingPlaceholder && !context.coordinator.isEditing {
-            showPlaceholder(tv, context: context)
-        } else if !text.isEmpty && isShowingPlaceholder {
-            tv.string = text
-            tv.textColor = .labelColor
-            context.coordinator.isShowingPlaceholder = false
-        } else if !isShowingPlaceholder && tv.string != text {
-            tv.string = text
+    func updateNSView(_ container: NSView, context: Context) {
+        guard let tv = context.coordinator.textView,
+              let ph = context.coordinator.placeholderField else { return }
+
+        // Only update the text view when NOT actively editing to avoid cursor corruption
+        if !context.coordinator.isEditing {
+            if tv.string != text {
+                tv.string = text
+            }
+            ph.isHidden = !text.isEmpty
         }
-    }
-
-    private func setupPlaceholder(_ tv: NSTextView, context: Context) {
-        if text.isEmpty {
-            showPlaceholder(tv, context: context)
-        } else {
-            tv.string = text
-            tv.textColor = .labelColor
-        }
-    }
-
-    private func showPlaceholder(_ tv: NSTextView, context: Context) {
-        tv.string = placeholder
-        tv.textColor = .placeholderTextColor
-        context.coordinator.isShowingPlaceholder = true
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: ChatInputField
         weak var textView: NSTextView?
-        var isShowingPlaceholder = false
+        weak var placeholderField: NSTextField?
         var isEditing = false
 
         init(_ parent: ChatInputField) { self.parent = parent }
 
         func textDidBeginEditing(_ notification: Notification) {
-            guard let tv = notification.object as? NSTextView else { return }
             isEditing = true
-            if isShowingPlaceholder {
-                tv.string = ""
-                tv.textColor = .labelColor
-                isShowingPlaceholder = false
-            }
+            placeholderField?.isHidden = true
         }
 
         func textDidEndEditing(_ notification: Notification) {
-            guard let tv = notification.object as? NSTextView else { return }
             isEditing = false
-            if tv.string.isEmpty {
-                tv.string = parent.placeholder
-                tv.textColor = .placeholderTextColor
-                isShowingPlaceholder = true
-            }
+            guard let tv = notification.object as? NSTextView else { return }
+            placeholderField?.isHidden = !tv.string.isEmpty
         }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
-            if isShowingPlaceholder { return }
-            parent.text = tv.string
+            let current = tv.string
+            // Update binding on main thread without re-triggering updateNSView mid-keystroke
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.text = current
+                self?.placeholderField?.isHidden = !current.isEmpty
+            }
         }
 
         func textView(_ tv: NSTextView, doCommandBy sel: Selector) -> Bool {
@@ -347,9 +370,15 @@ struct ChatInputField: NSViewRepresentable {
                     tv.insertNewlineIgnoringFieldEditor(nil)
                     return true
                 }
-                if !isShowingPlaceholder && !tv.string.isEmpty {
-                    parent.onSubmit()
+                let trimmed = tv.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return true }
+                // Clear the text view immediately before calling onSubmit
+                tv.string = ""
+                DispatchQueue.main.async { [weak self] in
+                    self?.parent.text = ""
+                    self?.placeholderField?.isHidden = false
                 }
+                parent.onSubmit()
                 return true
             }
             return false
