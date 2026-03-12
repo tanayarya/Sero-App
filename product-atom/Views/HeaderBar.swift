@@ -158,9 +158,15 @@ struct HeaderBar: View {
             let fileType: DocFileType = ext == "pdf" ? .pdf : (ext == "md" || ext == "markdown") ? .markdown : .txt
             let size = fileSizeStr(url: url)
             let pages = ext == "pdf" ? (PDFDocument(url: url)?.pageCount ?? 1) : 1
-            let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, pageCount: pages, fileSize: size, url: url)
-            // CRITICAL: pass liveURL so AppState doesn't try bookmark (which fails for fresh files)
-            DispatchQueue.main.async { appState.loadDocument(doc, liveURL: url) }
+            // Create doc with bookmark for recents persistence
+            let doc = ChatDocument(
+                name: url.lastPathComponent,
+                fileType: fileType, pageCount: pages,
+                fileSize: size, url: url
+            )
+            DispatchQueue.main.async {
+                appState.openFromPicker(url: url, doc: doc)
+            }
         }
     }
 

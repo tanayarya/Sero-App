@@ -158,6 +158,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					65802C1A3E72132AE852DD25 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = D3183290A2BC751F2BA3C695 /* Build configuration list for PBXProject "product-atom" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -235,6 +240,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "product-atom/product-atom.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "product-atom/Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 			};
@@ -260,6 +267,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "product-atom/product-atom.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "product-atom/Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 			};

@@ -158,7 +158,7 @@ struct HomeView: View {
         let size = fileSizeString(url: url)
         let pages = ext == "pdf" ? (PDFDocument(url: url)?.pageCount ?? 1) : 1
         let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, pageCount: pages, fileSize: size, url: url)
-        appState.loadDocument(doc)
+        appState.openFromPicker(url: url, doc: doc)
     }
 
     private func fileSizeString(url: URL) -> String {

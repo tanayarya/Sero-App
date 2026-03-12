@@ -75,8 +75,7 @@ struct WorkspaceView: View {
         let size = fileSizeStr(url: url)
         let pages = ext == "pdf" ? (PDFDocument(url: url)?.pageCount ?? 1) : 1
         let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, pageCount: pages, fileSize: size, url: url)
-        // Pass the live URL so AppState uses it directly (no bookmark re-resolution needed)
-        appState.loadDocument(doc, liveURL: url)
+        appState.openFromPicker(url: url, doc: doc)
     }
 
     private func fileSizeStr(url: URL) -> String {
@@ -212,8 +211,7 @@ struct SidebarView: View {
             let size = fileSizeStr(url: url)
             let pages = ext == "pdf" ? (PDFDocument(url: url)?.pageCount ?? 1) : 1
             let doc = ChatDocument(name: url.lastPathComponent, fileType: fileType, pageCount: pages, fileSize: size, url: url)
-            // Pass live URL directly — NSOpenPanel already grants sandbox access
-            DispatchQueue.main.async { appState.loadDocument(doc, liveURL: url) }
+            DispatchQueue.main.async { appState.openFromPicker(url: url, doc: doc) }
         }
     }
 

@@ -2,7 +2,6 @@ import SwiftUI
 import PDFKit
 
 // MARK: - Document Viewer Panel
-// Uses appState.activeDocumentURL — the live, already-scoped URL held open by AppState.
 
 struct DocumentViewerPanel: View {
     @EnvironmentObject var appState: AppState
@@ -15,16 +14,12 @@ struct DocumentViewerPanel: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            background
             documentContent
-                .background(isDark
-                    ? Color(red: 0.147, green: 0.147, blue: 0.147)
-                    : Color(red: 0.92, green: 0.92, blue: 0.93))
-
             if appState.activeDocumentURL != nil {
                 floatingToolbar
             }
-
-            processingOverlay
+            processingBanner
         }
         .onChange(of: appState.jumpToPage) { _, page in
             if let p = page { currentPage = p; appState.jumpToPage = nil }
@@ -32,6 +27,11 @@ struct DocumentViewerPanel: View {
         .onChange(of: appState.activeDocumentURL) { _, _ in
             currentPage = 1; totalPages = 1; zoomLevel = 1.0
         }
+    }
+
+    private var background: some View {
+        (isDark ? Color(red: 0.147, green: 0.147, blue: 0.147) : Color(red: 0.92, green: 0.92, blue: 0.93))
+            .ignoresSafeArea()
     }
 
     // MARK: - Content
@@ -60,121 +60,82 @@ struct DocumentViewerPanel: View {
         }
     }
 
-    // MARK: - Floating Toolbar (Figma design)
+    // MARK: - Floating Toolbar
 
-    @ViewBuilder
     private var floatingToolbar: some View {
         HStack(spacing: 16) {
-            // Zoom out
-            Button { zoomLevel = max(0.25, zoomLevel - 0.25) } label: {
-                Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-
+            toolbarButton(icon: "minus") { zoomLevel = max(0.25, zoomLevel - 0.25) }
             Text("\(Int(zoomLevel * 100))%")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(minWidth: 36)
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(.white).frame(minWidth: 36)
+            toolbarButton(icon: "plus") { zoomLevel = min(4.0, zoomLevel + 0.25) }
 
-            // Zoom in
-            Button { zoomLevel = min(4.0, zoomLevel + 0.25) } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                    .frame(width: 30, height: 30)
+            Rectangle().fill(Color.white.opacity(0.15)).frame(width: 1, height: 16)
+
+            toolbarButton(icon: "chevron.up", disabled: currentPage <= 1) {
+                currentPage = max(1, currentPage - 1)
             }
-            .buttonStyle(.plain)
-
-            Rectangle()
-                .fill(Color.white.opacity(0.15))
-                .frame(width: 1, height: 16)
-
-            // Prev page
-            Button { currentPage = max(1, currentPage - 1) } label: {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(currentPage <= 1
-                        ? Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)
-                        : Color(red: 0.604, green: 0.627, blue: 0.651))
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-            .disabled(currentPage <= 1)
-
             Text(totalPages > 0 ? "\(currentPage) / \(totalPages)" : "—")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(minWidth: 40)
-
-            // Next page
-            Button { currentPage = min(totalPages, currentPage + 1) } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(currentPage >= totalPages
-                        ? Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)
-                        : Color(red: 0.604, green: 0.627, blue: 0.651))
-                    .frame(width: 30, height: 30)
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(.white).frame(minWidth: 44)
+            toolbarButton(icon: "chevron.down", disabled: currentPage >= totalPages) {
+                currentPage = min(totalPages, currentPage + 1)
             }
-            .buttonStyle(.plain)
-            .disabled(currentPage >= totalPages)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(red: 0.118, green: 0.118, blue: 0.118).opacity(0.92))
+        .padding(.horizontal, 14).padding(.vertical, 7)
+        .background(Color(red: 0.118, green: 0.118, blue: 0.118).opacity(0.94))
         .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
         .clipShape(Capsule())
         .shadow(color: .black.opacity(0.5), radius: 16, x: 0, y: 4)
         .padding(.bottom, 20)
     }
 
-    // MARK: - Processing Overlay (shown in top area, not overlapping toolbar)
+    private func toolbarButton(icon: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(disabled
+                    ? Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)
+                    : Color(red: 0.604, green: 0.627, blue: 0.651))
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    // MARK: - Processing Banner
 
     @ViewBuilder
-    private var processingOverlay: some View {
+    private var processingBanner: some View {
         switch appState.processingState {
         case .extracting:
-            processingBannerView("Extracting text…", progress: nil)
+            bannerView("Extracting text…", progress: nil)
         case .embedding(let p):
-            processingBannerView("Generating embeddings \(Int(p * 100))%…", progress: p)
+            bannerView("Generating embeddings \(Int(p * 100))%…", progress: p)
         default:
             EmptyView()
         }
     }
 
-    @ViewBuilder
-    private func processingBannerView(_ label: String, progress: Double?) -> some View {
+    private func bannerView(_ label: String, progress: Double?) -> some View {
         VStack {
             HStack(spacing: 10) {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color(red: 0.039, green: 0.518, blue: 1))
-                Text(label)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
+                ProgressView().controlSize(.small).tint(Color(red: 0.039, green: 0.518, blue: 1))
+                Text(label).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
                 if let p = progress {
                     Spacer()
-                    ProgressView(value: p)
-                        .progressViewStyle(.linear)
-                        .frame(width: 80)
+                    ProgressView(value: p).progressViewStyle(.linear).frame(width: 80)
                         .tint(Color(red: 0.039, green: 0.518, blue: 1))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.top, 16)
-            .padding(.horizontal, 20)
+            .padding(.top, 16).padding(.horizontal, 20)
             Spacer()
         }
     }
 
     // MARK: - Empty State
 
-    @ViewBuilder
     private var emptyState: some View {
         VStack(spacing: 14) {
             Spacer()
@@ -195,7 +156,7 @@ struct DocumentViewerPanel: View {
 }
 
 // MARK: - PDF Viewer
-// AppState holds the security-scoped URL open. We just read it directly.
+// CRITICAL: Always load via Data to avoid sandbox path-based access failures.
 
 struct PDFViewerRepresentable: NSViewRepresentable {
     let url: URL
@@ -223,14 +184,13 @@ struct PDFViewerRepresentable: NSViewRepresentable {
         context.coordinator.onPageChange = { page in
             DispatchQueue.main.async { self.currentPage = page }
         }
-
-        loadPDF(into: pdfView, context: context)
+        loadDocument(into: pdfView, context: context)
         return pdfView
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
         if context.coordinator.loadedPath != url.path {
-            loadPDF(into: pdfView, context: context)
+            loadDocument(into: pdfView, context: context)
         }
         if abs(pdfView.scaleFactor - zoom) > 0.01 {
             pdfView.scaleFactor = zoom
@@ -244,29 +204,42 @@ struct PDFViewerRepresentable: NSViewRepresentable {
         }
     }
 
-    private func loadPDF(into pdfView: PDFView, context: Context) {
+    private func loadDocument(into pdfView: PDFView, context: Context) {
         context.coordinator.loadedPath = url.path
-        NSLog("[DocChat] PDFView loading: %@", url.path)
-        if let pdfDoc = PDFDocument(url: url) {
-            pdfView.document = pdfDoc
-            let count = pdfDoc.pageCount
-            DispatchQueue.main.async {
-                self.totalPages = count
-                self.currentPage = 1
+        NSLog("[DocChat] Loading PDF: %@", url.path)
+
+        // Always load via Data — avoids any secondary sandbox path checks
+        DispatchQueue.global(qos: .userInitiated).async {
+            var pdfDoc: PDFDocument?
+
+            // Try Data first (works even when only scope-based access is active)
+            if let data = try? Data(contentsOf: url, options: .mappedIfSafe) {
+                pdfDoc = PDFDocument(data: data)
+                NSLog("[DocChat] PDF loaded via Data: %d pages", pdfDoc?.pageCount ?? 0)
             }
-            NSLog("[DocChat] PDFView loaded %d pages", count)
-        } else {
-            // Try reading data directly as fallback
-            if let data = try? Data(contentsOf: url), let pdfDoc = PDFDocument(data: data) {
-                pdfView.document = pdfDoc
-                let count = pdfDoc.pageCount
-                DispatchQueue.main.async {
+
+            // Fallback: try URL directly
+            if pdfDoc == nil {
+                pdfDoc = PDFDocument(url: url)
+                NSLog("[DocChat] PDF loaded via URL fallback: %d pages", pdfDoc?.pageCount ?? 0)
+            }
+
+            DispatchQueue.main.async {
+                if let doc = pdfDoc, doc.pageCount > 0 {
+                    pdfView.document = doc
+                    let count = doc.pageCount
                     self.totalPages = count
                     self.currentPage = 1
+                    // Set initial zoom to fit width
+                    pdfView.autoScales = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        pdfView.autoScales = false
+                        self.zoom = pdfView.scaleFactor
+                    }
+                    NSLog("[DocChat] PDFView ready with %d pages", count)
+                } else {
+                    NSLog("[DocChat] Failed to load PDF: %@", url.path)
                 }
-                NSLog("[DocChat] PDFView loaded via data fallback: %d pages", count)
-            } else {
-                NSLog("[DocChat] PDFDocument failed to load: %@", url.path)
             }
         }
     }
