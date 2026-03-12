@@ -17,6 +17,7 @@
 		6EF2EA07B886EF5866AB72C4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BD2170BED6410E27DF6802 /* AppState.swift */; };
 		75C6BB19DC98939060081B90 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78950EA3C9F78F8F769E793 /* SettingsView.swift */; };
 		87E509DC09926719BC7CB55F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97966E5AED6ACEDC993C7955 /* ContentView.swift */; };
+		903C65B3357DF0C34FB5CBA7 /* HowItWorksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580C1ADF6E88E32A9F127653 /* HowItWorksView.swift */; };
 		9AF528D99ACB4AA6AD319906 /* ChatDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174D6A373BC8F9B725288E20 /* ChatDocument.swift */; };
 		B916503ED3B87B44CBE575CE /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B85D9275A925C09528611E /* HomeView.swift */; };
 		DCD8DC6E62EEA6D7D92E6A4D /* HeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A388EEE78C7DCC8FB29D9CFA /* HeaderBar.swift */; };
@@ -30,6 +31,7 @@
 		1DF21F33ED03F83BE5ED7509 /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
 		30E15D5F0D46BF7607156D2C /* product-atom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "product-atom.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		525A6CD20F360580861AD720 /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		580C1ADF6E88E32A9F127653 /* HowItWorksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowItWorksView.swift; sourceTree = "<group>"; };
 		6B6C89156DFF4AA82B209E2B /* product-atom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "product-atom.entitlements"; sourceTree = "<group>"; };
 		8907C32B60571D99602B0180 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		97966E5AED6ACEDC993C7955 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -63,6 +65,7 @@
 				09E063EC972BEBD8DEF5A554 /* DocumentViewerPanel.swift */,
 				A388EEE78C7DCC8FB29D9CFA /* HeaderBar.swift */,
 				F8B85D9275A925C09528611E /* HomeView.swift */,
+				580C1ADF6E88E32A9F127653 /* HowItWorksView.swift */,
 				C78950EA3C9F78F8F769E793 /* SettingsView.swift */,
 				525A6CD20F360580861AD720 /* WorkspaceView.swift */,
 			);
@@ -201,6 +204,7 @@
 				5D1947EA9233BBBEF3169F4C /* DocumentViewerPanel.swift in Sources */,
 				DCD8DC6E62EEA6D7D92E6A4D /* HeaderBar.swift in Sources */,
 				B916503ED3B87B44CBE575CE /* HomeView.swift in Sources */,
+				903C65B3357DF0C34FB5CBA7 /* HowItWorksView.swift in Sources */,
 				3521DB22F40AAC2B47EE422A /* OllamaService.swift in Sources */,
 				6042E5C6AFDCF2540FF8AA72 /* RAGEngine.swift in Sources */,
 				75C6BB19DC98939060081B90 /* SettingsView.swift in Sources */,

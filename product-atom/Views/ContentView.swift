@@ -17,7 +17,7 @@ struct ContentView: View {
             SettingsView().environmentObject(appState)
         }
         .sheet(isPresented: $appState.showHowItWorks) {
-            HowItWorksView()
+            HowItWorksView().environmentObject(appState)
         }
         .onAppear { appState.fetchModels() }
         .onKeyPress("/") {

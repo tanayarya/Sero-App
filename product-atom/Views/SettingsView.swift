@@ -5,7 +5,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @State private var isTestingConnection = false
-    @State private var connectionResult: Bool? = nil
+    @State private var connectionResult: Bool?
     @State private var urlDraft: String = ""
     private var isDark: Bool { colorScheme == .dark }
 
@@ -54,13 +54,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var ollamaSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Ollama URL")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack(spacing: 8) {
-                    TextField("http://localhost:11434", text: $urlDraft)
+                    TextField("localhost:11434", text: $urlDraft)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 13, design: .monospaced))
                         .onSubmit { commitURL() }
@@ -76,7 +77,7 @@ struct SettingsView: View {
                 }
             }
         } footer: {
-            Text("Default: http://localhost:11434\nChanges are saved automatically when you press Return or click Test.")
+            Text("Default: http://localhost:11434\nSaved automatically on Enter or Test.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -120,7 +121,7 @@ struct SettingsView: View {
         } header: {
             Text("AI Models")
         } footer: {
-            Text("Supported models appear once detected from your Ollama instance.\nRecommended: llama3.2 for chat · nomic-embed-text for embeddings\nInstall: ollama pull nomic-embed-text")
+            Text("Recommended: llama3.2 for chat · nomic-embed-text for embeddings\nInstall: ollama pull nomic-embed-text")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

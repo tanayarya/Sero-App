@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Notification Name
-
 extension Notification.Name {
     static let focusChatInput = Notification.Name("focusChatInput")
 }
@@ -21,8 +19,7 @@ struct ChatPanel: View {
             chatToolbar
             Divider().opacity(0.3)
             messagesArea
-            Divider().opacity(0.3)
-            inputArea
+            inputSection
         }
         .background(isDark ? Color(red: 0.055, green: 0.063, blue: 0.071) : Color.white)
         .onReceive(NotificationCenter.default.publisher(for: .focusChatInput)) { _ in
@@ -30,7 +27,7 @@ struct ChatPanel: View {
         }
     }
 
-    // MARK: - Toolbar (Figma: "Assistant" label + trash icon)
+    // MARK: - Toolbar
     @ViewBuilder
     private var chatToolbar: some View {
         HStack {
@@ -40,51 +37,40 @@ struct ChatPanel: View {
             Spacer()
             processingStatus
             if !appState.messages.isEmpty {
-                Button {
-                    appState.clearChat()
-                } label: {
+                Button { appState.clearChat() } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 12))
                         .foregroundStyle(isDark ? Color.white : Color(red: 0.3, green: 0.3, blue: 0.3))
                 }
-                .buttonStyle(.plain)
-                .help("Clear chat")
+                .buttonStyle(.plain).help("Clear chat")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16).padding(.vertical, 16)
     }
 
     @ViewBuilder
     private var processingStatus: some View {
         switch appState.processingState {
-        case .ready:
-            EmptyView()
-        case .failed(let msg):
-            Text(msg)
-                .font(.system(size: 10))
-                .foregroundStyle(Color(red: 1, green: 0.373, blue: 0.341))
-                .lineLimit(1)
         case .extracting:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
-                Text("Extracting…")
-                    .font(.system(size: 10))
+                Text("Extracting…").font(.system(size: 10))
                     .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
             }
         case .embedding(let p):
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
-                Text("Embedding \(Int(p * 100))%")
-                    .font(.system(size: 10))
+                Text("Embedding \(Int(p * 100))%").font(.system(size: 10))
                     .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
             }
-        case .idle:
-            EmptyView()
+        case .failed(let msg):
+            Text(msg).font(.system(size: 10))
+                .foregroundStyle(Color(red: 1, green: 0.373, blue: 0.341)).lineLimit(1)
+        default: EmptyView()
         }
     }
 
-    // MARK: - Messages Area
+    // MARK: - Messages
     @ViewBuilder
     private var messagesArea: some View {
         if appState.messages.isEmpty {
@@ -94,21 +80,12 @@ struct ChatPanel: View {
                 ScrollView {
                     LazyVStack(spacing: 4) {
                         ForEach(appState.messages) { msg in
-                            MessageBubbleView(message: msg)
-                                .id(msg.id)
+                            MessageBubbleView(message: msg).id(msg.id)
                         }
-                        if appState.isStreaming {
-                            let lastIsAssistant = appState.messages.last?.role == .assistant
-                            let lastContent = appState.messages.last?.content ?? ""
-                            if !lastIsAssistant || lastContent.isEmpty {
-                                TypingIndicatorView()
-                                    .id("typing")
-                            }
-                        }
+                        typingIndicator
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 20)
+                    .padding(.horizontal, 20).padding(.vertical, 20)
                 }
                 .onChange(of: appState.messages.count) { _ in
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -116,6 +93,17 @@ struct ChatPanel: View {
                 .onChange(of: appState.messages.last?.content) { _ in
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var typingIndicator: some View {
+        if appState.isStreaming {
+            let lastIsAssistant = appState.messages.last?.role == .assistant
+            let lastContent = appState.messages.last?.content ?? ""
+            if !lastIsAssistant || lastContent.isEmpty {
+                TypingIndicatorView().id("typing")
             }
         }
     }
@@ -138,79 +126,68 @@ struct ChatPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Input Area (Figma layout)
+    // MARK: - Input Section
     @ViewBuilder
-    private var inputArea: some View {
+    private var inputSection: some View {
         VStack(spacing: 8) {
-            // Suggestion chips row
+            inputField
             if appState.currentDocument != nil && appState.processingState == .ready {
                 suggestionsRow
             }
-            // Input field row
-            HStack(alignment: .bottom, spacing: 0) {
-                NativeTextEditor(
-                    text: $inputText,
-                    placeholder: "Ask about this document…",
-                    onSubmit: sendMessage
-                )
+        }
+        .padding(.top, 12)
+        .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
+        .overlay(alignment: .top) {
+            Rectangle().fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)).frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var inputField: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            ChatInputField(text: $inputText, placeholder: "Ask about this document…", onSubmit: sendMessage)
                 .frame(minHeight: 35, maxHeight: 120)
                 .padding(.leading, 10)
-
-                HStack(spacing: 8) {
-                    // Send button (Figma blue circle)
-                    Button {
-                        sendMessage()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(canSend
-                                      ? Color(red: 0.039, green: 0.518, blue: 1)
-                                      : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
+            HStack(spacing: 8) {
+                Button { sendMessage() } label: {
+                    ZStack {
+                        Circle()
+                            .fill(canSend ? Color(red: 0.039, green: 0.518, blue: 1) : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!canSend)
                 }
-                .padding(.trailing, 4)
-                .padding(.bottom, 4)
+                .buttonStyle(.plain).disabled(!canSend)
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 4)
-            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.trailing, 4).padding(.bottom, 4)
         }
-        .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
+        .padding(.horizontal, 4).padding(.vertical, 4)
+        .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
+        .overlay(RoundedRectangle(cornerRadius: 16)
+            .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 16)
     }
 
     @ViewBuilder
     private var suggestionsRow: some View {
+        let chips = ["Explain table on page 4", "Summarize document", "Find key risks"]
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(suggestionChips, id: \.self) { chip in
+                ForEach(chips, id: \.self) { chip in
                     Button {
-                        inputText = chip
-                        isInputFocused = true
+                        inputText = ""
+                        appState.sendMessage(chip)
                     } label: {
                         Text(chip)
                             .font(.system(size: 11))
                             .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1)
-                            )
+                            .overlay(Capsule()
+                                .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -218,13 +195,8 @@ struct ChatPanel: View {
             }
             .padding(.horizontal, 20)
         }
+        .padding(.bottom, 12)
     }
-
-    private let suggestionChips = [
-        "Explain table on page 4",
-        "Summarize document",
-        "Find key risks"
-    ]
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespaces).isEmpty && !appState.isStreaming
@@ -238,9 +210,9 @@ struct ChatPanel: View {
     }
 }
 
-// MARK: - Native NSTextView wrapper (no FocusState.Binding)
+// MARK: - Native Chat Input (proper placeholder, not prefilled text)
 
-struct NativeTextEditor: NSViewRepresentable {
+struct ChatInputField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
     let onSubmit: () -> Void
@@ -257,7 +229,7 @@ struct NativeTextEditor: NSViewRepresentable {
         tv.drawsBackground = false
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
-        tv.textContainerInset = NSSize(width: 0, height: 6)
+        tv.textContainerInset = NSSize(width: 0, height: 8)
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         tv.textContainer?.widthTracksTextView = true
@@ -265,63 +237,75 @@ struct NativeTextEditor: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = false
         context.coordinator.textView = tv
-        context.coordinator.updatePlaceholder(tv, text: text)
-
-        // Register for "/" focus notification
+        setupPlaceholder(tv, context: context)
         NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.focusFromNotification),
-            name: .focusChatInput,
-            object: nil
+            context.coordinator, selector: #selector(Coordinator.focusFromNotification),
+            name: .focusChatInput, object: nil
         )
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let tv = scrollView.documentView as? NSTextView else { return }
-        if tv.string != text {
+        let isShowingPlaceholder = context.coordinator.isShowingPlaceholder
+        if text.isEmpty && !isShowingPlaceholder && !context.coordinator.isEditing {
+            showPlaceholder(tv, context: context)
+        } else if !text.isEmpty && isShowingPlaceholder {
             tv.string = text
-            context.coordinator.updatePlaceholder(tv, text: text)
+            tv.textColor = .labelColor
+            context.coordinator.isShowingPlaceholder = false
+        } else if !isShowingPlaceholder && tv.string != text {
+            tv.string = text
         }
     }
 
-    class Coordinator: NSObject, NSTextViewDelegate {
-        var parent: NativeTextEditor
-        weak var textView: NSTextView?
-
-        init(_ parent: NativeTextEditor) { self.parent = parent }
-
-        func updatePlaceholder(_ tv: NSTextView, text: String) {
-            if text.isEmpty {
-                tv.textColor = NSColor.placeholderTextColor
-                if tv.string != parent.placeholder {
-                    tv.string = parent.placeholder
-                }
-            } else if tv.textColor == NSColor.placeholderTextColor {
-                tv.string = text
-                tv.textColor = NSColor.labelColor
-            }
+    private func setupPlaceholder(_ tv: NSTextView, context: Context) {
+        if text.isEmpty {
+            showPlaceholder(tv, context: context)
+        } else {
+            tv.string = text
+            tv.textColor = .labelColor
         }
+    }
+
+    private func showPlaceholder(_ tv: NSTextView, context: Context) {
+        tv.string = placeholder
+        tv.textColor = .placeholderTextColor
+        context.coordinator.isShowingPlaceholder = true
+    }
+
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: ChatInputField
+        weak var textView: NSTextView?
+        var isShowingPlaceholder = false
+        var isEditing = false
+
+        init(_ parent: ChatInputField) { self.parent = parent }
 
         func textDidBeginEditing(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
-            if tv.string == parent.placeholder && tv.textColor == NSColor.placeholderTextColor {
+            isEditing = true
+            if isShowingPlaceholder {
                 tv.string = ""
-                tv.textColor = NSColor.labelColor
+                tv.textColor = .labelColor
+                isShowingPlaceholder = false
             }
         }
 
         func textDidEndEditing(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
+            isEditing = false
             if tv.string.isEmpty {
-                updatePlaceholder(tv, text: "")
+                tv.string = parent.placeholder
+                tv.textColor = .placeholderTextColor
+                isShowingPlaceholder = true
             }
         }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
-            let newText = tv.string == parent.placeholder ? "" : tv.string
-            parent.text = newText
+            if isShowingPlaceholder { return }
+            parent.text = tv.string
         }
 
         func textView(_ tv: NSTextView, doCommandBy sel: Selector) -> Bool {
@@ -329,12 +313,11 @@ struct NativeTextEditor: NSViewRepresentable {
                 if NSEvent.modifierFlags.contains(.shift) {
                     tv.insertNewlineIgnoringFieldEditor(nil)
                     return true
-                } else {
-                    if tv.string != parent.placeholder {
-                        parent.onSubmit()
-                    }
-                    return true
                 }
+                if !isShowingPlaceholder && !tv.string.isEmpty {
+                    parent.onSubmit()
+                }
+                return true
             }
             return false
         }
@@ -359,9 +342,7 @@ struct MessageBubbleView: View {
             if isUser { Spacer(minLength: 60) }
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
                 bubbleContent
-                if !message.sourcePages.isEmpty && !isUser {
-                    pageReferences
-                }
+                if !message.sourcePages.isEmpty && !isUser { pageReferences }
             }
             if !isUser { Spacer(minLength: 40) }
         }
@@ -370,19 +351,15 @@ struct MessageBubbleView: View {
     @ViewBuilder
     private var bubbleContent: some View {
         if isUser {
-            // Figma: user bubble is blue (0.039, 0.518, 1)
             Text(message.content)
-                .font(.system(size: 13))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
+                .font(.system(size: 13)).foregroundStyle(.white)
+                .padding(.horizontal, 12).padding(.vertical, 11)
                 .background(Color(red: 0.039, green: 0.518, blue: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .frame(maxWidth: 260, alignment: .trailing)
         } else {
             FormattedResponseView(text: message.content, isStreaming: message.isStreaming)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
+                .padding(.horizontal, 12).padding(.vertical, 11)
                 .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .frame(maxWidth: 280, alignment: .leading)
@@ -393,18 +370,13 @@ struct MessageBubbleView: View {
     private var pageReferences: some View {
         HStack(spacing: 4) {
             ForEach(message.sourcePages.prefix(4), id: \.self) { page in
-                Button {
-                    appState.jumpToPage = page
-                } label: {
+                Button { appState.jumpToPage = page } label: {
                     HStack(spacing: 3) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 8))
-                        Text("Page \(page)")
-                            .font(.system(size: 11))
+                        Image(systemName: "doc.text").font(.system(size: 8))
+                        Text("Page \(page)").font(.system(size: 11))
                     }
                     .foregroundStyle(Color(red: 0.376, green: 0.647, blue: 1))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color(red: 0.102, green: 0.11, blue: 0.118))
                     .clipShape(Capsule())
                 }
@@ -414,7 +386,7 @@ struct MessageBubbleView: View {
     }
 }
 
-// MARK: - Formatted Response View
+// MARK: - Formatted Response
 
 struct FormattedResponseView: View {
     let text: String
@@ -422,20 +394,18 @@ struct FormattedResponseView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if let attributed = try? AttributedString(
+            if let attr = try? AttributedString(
                 markdown: text,
                 options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
             ) {
-                Text(attributed)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.primary)
+                Text(attr)
+                    .font(.system(size: 13)).foregroundStyle(Color.primary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.primary)
+                    .font(.system(size: 13)).foregroundStyle(Color.primary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -443,8 +413,7 @@ struct FormattedResponseView: View {
             if isStreaming && !text.isEmpty {
                 RoundedRectangle(cornerRadius: 1)
                     .fill(Color(red: 0.039, green: 0.518, blue: 1))
-                    .frame(width: 6, height: 13)
-                    .opacity(0.8)
+                    .frame(width: 6, height: 13).opacity(0.8)
             }
         }
     }
@@ -455,7 +424,6 @@ struct FormattedResponseView: View {
 struct TypingIndicatorView: View {
     @State private var dotPhase = 0
     @Environment(\.colorScheme) var colorScheme
-    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
@@ -468,9 +436,8 @@ struct TypingIndicatorView: View {
                         .animation(.easeInOut(duration: 0.4).delay(Double(i) * 0.15), value: dotPhase)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 20))
             Spacer()
         }
