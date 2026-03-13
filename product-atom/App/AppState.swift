@@ -250,6 +250,8 @@ final class AppState: ObservableObject {
 
     func clearChat() { messages.removeAll() }
 
+    func clearRecentDocuments() { recentDocuments = [] }
+
     func showToastMessage(_ msg: String) {
         toastMessage = msg
         withAnimation(.spring(response: 0.4)) { showToast = true }

@@ -15,15 +15,15 @@ struct HomeView: View {
             backgroundGradients
             ScrollView {
                 VStack(spacing: 0) {
-                    dropZoneSection.padding(.top, 60)
+                    dropZoneSection.padding(.top, 28)
+                    stepsSection.padding(.top, 24)
                     if !appState.recentDocuments.isEmpty {
-                        recentDocumentsSection.padding(.top, 24)
+                        recentDocumentsSection.padding(.top, 28)
                     }
-                    stepsSection.padding(.top, 32)
                 }
                 .frame(maxWidth: 640)
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 60)
+                .padding(.bottom, 48)
             }
         }
     }
@@ -88,7 +88,7 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 32)
         }
-        .padding(.vertical, 40)
+        .padding(.vertical, 28)
     }
 
     @ViewBuilder

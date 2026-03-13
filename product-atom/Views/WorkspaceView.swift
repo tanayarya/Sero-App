@@ -195,10 +195,21 @@ struct SidebarView: View {
         let recents = appState.recentDocuments.filter { $0.id != appState.currentDocument?.id }.prefix(20)
         if !recents.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Recent")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(gray)
-                    .padding(.leading, 8)
+                HStack {
+                    Text("Recent")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(gray)
+                        .padding(.leading, 8)
+                    Spacer()
+                    Button { appState.clearRecentDocuments() } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(gray)
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear recent files")
+                }
                 VStack(spacing: 4) {
                     ForEach(Array(recents)) { doc in
                         recentRow(doc)

@@ -110,9 +110,8 @@ struct ChatPanel: View {
     @ViewBuilder
     private var typingIndicator: some View {
         if appState.isStreaming {
-            let lastIsAssistant = appState.messages.last?.role == .assistant
             let lastContent = appState.messages.last?.content ?? ""
-            if !lastIsAssistant || lastContent.isEmpty {
+            if lastContent.isEmpty {
                 TypingIndicatorView().id("typing")
             }
         }
@@ -462,7 +461,7 @@ struct MessageBubbleView: View {
                 .background(Color(red: 0.039, green: 0.518, blue: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .frame(maxWidth: 260, alignment: .trailing)
-        } else {
+        } else if !message.content.isEmpty {
             FormattedResponseView(text: message.content, isStreaming: message.isStreaming)
                 .padding(.horizontal, 12).padding(.vertical, 11)
                 .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
