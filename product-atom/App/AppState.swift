@@ -29,7 +29,7 @@ final class AppState: ObservableObject {
             return docs
         }
         set {
-            let trimmed = Array(newValue.prefix(10))
+            let trimmed = Array(newValue.prefix(20))
             if let data = try? JSONEncoder().encode(trimmed),
                let str = String(data: data, encoding: .utf8) {
                 recentDocumentsJSON = str

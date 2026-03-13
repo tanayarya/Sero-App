@@ -64,19 +64,11 @@ struct HowItWorksView: View {
     @ViewBuilder
     private var stepsSection: some View {
         ScrollView {
-            ZStack(alignment: .leading) {
-                // Vertical progress line
-                Rectangle()
-                    .fill(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
-                    .frame(width: 2)
-                    .padding(.leading, 63)
-
-                VStack(alignment: .leading, spacing: 24) {
-                    step1Install
-                    step2Service
-                    step3Model
-                    step4Ready
-                }
+            VStack(alignment: .leading, spacing: 24) {
+                step1Install
+                step2Service
+                step3Model
+                step4Ready
             }
             .padding(.horizontal, 40)
             .padding(.bottom, 40)
