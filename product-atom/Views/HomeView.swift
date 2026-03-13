@@ -16,6 +16,9 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     dropZoneSection.padding(.top, 60)
+                    if !appState.recentDocuments.isEmpty {
+                        recentDocumentsSection.padding(.top, 24)
+                    }
                     stepsSection.padding(.top, 32)
                 }
                 .frame(maxWidth: 640)
@@ -129,6 +132,93 @@ struct HomeView: View {
         .overlay(RoundedRectangle(cornerRadius: 18)
             .strokeBorder(isDark ? Color.black.opacity(0.6) : Color.black.opacity(0.07), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    // MARK: - Recent Documents Section
+
+    @ViewBuilder
+    private var recentDocumentsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Recent Documents")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                .padding(.leading, 14)
+                .padding(.bottom, 6)
+
+            ForEach(Array(appState.recentDocuments.prefix(3))) { doc in
+                recentRow(doc)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder
+    private func recentRow(_ doc: ChatDocument) -> some View {
+        Button {
+            appState.switchDocument(doc)
+        } label: {
+            HStack(spacing: 0) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: doc.fileType.icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(
+                            doc.fileType == .pdf
+                            ? Color(red: 0.039, green: 0.518, blue: 1)
+                            : Color(red: 0.604, green: 0.627, blue: 0.651)
+                        )
+                }
+                .padding(.trailing, 14)
+
+                // Name + meta
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(doc.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(isDark ? Color(red: 0.902, green: 0.906, blue: 0.91) : Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .lineLimit(1)
+                    Text(recentSubtitle(doc))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+
+                // Arrow
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.05))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isDark ? Color(red: 0.902, green: 0.906, blue: 0.91) : Color(red: 0.3, green: 0.3, blue: 0.3))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(isDark ? Color.white.opacity(0.03) : Color.black.opacity(0.03))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.07), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func recentSubtitle(_ doc: ChatDocument) -> String {
+        let interval = Date().timeIntervalSince(doc.dateAdded)
+        let timeStr: String
+        if interval < 60 { timeStr = "Just now" }
+        else if interval < 3600 { timeStr = "\(Int(interval / 60)) mins ago" }
+        else if interval < 86400 { timeStr = "\(Int(interval / 3600))h ago" }
+        else if interval < 172800 { timeStr = "Yesterday" }
+        else {
+            let f = DateFormatter(); f.dateFormat = "MMM d"
+            timeStr = f.string(from: doc.dateAdded)
+        }
+        return "\(timeStr) • \(doc.fileSize)"
     }
 
     // MARK: - Helpers
