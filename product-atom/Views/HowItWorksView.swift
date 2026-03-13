@@ -257,8 +257,9 @@ struct HowItWorksView: View {
         .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
 
         HStack(spacing: 12) {
+            Spacer()
             Button { dismiss() } label: {
-                Text("Close")
+                Text("Cancel")
                     .font(.system(size: 14))
                     .foregroundStyle(gray)
                     .padding(.horizontal, 20)

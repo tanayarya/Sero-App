@@ -173,6 +173,7 @@ struct ChatPanel: View {
             }
         }
         .padding(.top, 10)
+        .padding(.bottom, appState.messages.isEmpty ? 12 : 0)
         .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
         .overlay(alignment: .top) {
             Rectangle().fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)).frame(height: 1)
@@ -307,8 +308,14 @@ struct ChatInputField: NSViewRepresentable {
         ph.cell?.lineBreakMode = .byTruncatingTail
         context.coordinator.placeholderField = ph
 
+        // Clickable container so clicking anywhere in the field focuses it
+        let clickable = ClickableInputContainer()
+        clickable.translatesAutoresizingMaskIntoConstraints = false
+        clickable.wantsLayer = true
+        clickable.targetTextView = tv
         container.addSubview(scrollView)
         container.addSubview(ph)
+        container.addSubview(clickable)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: container.topAnchor),
@@ -318,6 +325,10 @@ struct ChatInputField: NSViewRepresentable {
             ph.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 5),
             ph.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -5),
             ph.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            clickable.topAnchor.constraint(equalTo: container.topAnchor),
+            clickable.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            clickable.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            clickable.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
 
         // Sync initial state
@@ -345,6 +356,25 @@ struct ChatInputField: NSViewRepresentable {
                 tv.string = text
             }
             ph.isHidden = !text.isEmpty
+        }
+    }
+
+    class ClickableInputContainer: NSView {
+        weak var targetTextView: NSTextView?
+        override func mouseDown(with event: NSEvent) {
+            // Only focus if the text view itself isn't already first responder
+            if let tv = targetTextView, window?.firstResponder !== tv {
+                window?.makeFirstResponder(tv)
+            } else {
+                super.mouseDown(with: event)
+            }
+        }
+        // Pass through hit-testing so scroll/selection still works inside the text view
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            // Return self only when the point is not inside the scrollView's text view
+            let sub = super.hitTest(point)
+            if sub == self { return self }
+            return sub
         }
     }
 

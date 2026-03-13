@@ -54,21 +54,23 @@ struct SettingsView: View {
     @ViewBuilder
     private var ollamaSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Ollama URL")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 8) {
-                    TextField("localhost:11434", text: $urlDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 13, design: .monospaced))
-                        .multilineTextAlignment(.leading)
-                        .onSubmit { commitURL() }
+                TextField("http://localhost:11434", text: $urlDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13, design: .monospaced))
+                    .multilineTextAlignment(.leading)
+                    .onSubmit { commitURL() }
 
+                HStack(spacing: 6) {
                     connectionIndicator
-
+                    Text("Default: http://localhost:11434  ·  Saved on Enter")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                     Button(isTestingConnection ? "Testing…" : "Test") {
                         commitURL()
                         testConnection()
@@ -77,10 +79,6 @@ struct SettingsView: View {
                     .disabled(isTestingConnection)
                 }
             }
-        } footer: {
-            Text("Default: http://localhost:11434\nSaved automatically on Enter or Test.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
         }
     }
 
