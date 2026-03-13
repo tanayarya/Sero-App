@@ -88,9 +88,10 @@ struct HowItWorksView: View {
     private var step1Install: some View {
         stepRow(
             icon: "arrow.down.to.line",
-            iconBg: LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.02)],
-                                   startPoint: .top, endPoint: .bottom),
-            iconBorder: Color.white.opacity(0.12),
+            iconBg: isDark
+                ? LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.02)], startPoint: .top, endPoint: .bottom)
+                : LinearGradient(colors: [Color.black.opacity(0.06), Color.black.opacity(0.02)], startPoint: .top, endPoint: .bottom),
+            iconBorder: isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.12),
             titleText: "Install Ollama",
             descText: "Install the Ollama runtime to run local AI models on your machine."
         ) {
@@ -120,11 +121,13 @@ struct HowItWorksView: View {
     // MARK: Step 2
     @ViewBuilder
     private var step2Service: some View {
+        let iconBg2 = isDark
+            ? LinearGradient(colors: [Color(red: 0.145, green: 0.145, blue: 0.153)], startPoint: .top, endPoint: .bottom)
+            : LinearGradient(colors: [Color(red: 0.88, green: 0.88, blue: 0.90)], startPoint: .top, endPoint: .bottom)
         stepRow(
             icon: "terminal",
-            iconBg: LinearGradient(colors: [Color(red: 0.145, green: 0.145, blue: 0.153)],
-                                   startPoint: .top, endPoint: .bottom),
-            iconBorder: Color.black.opacity(0.5),
+            iconBg: iconBg2,
+            iconBorder: isDark ? Color.black.opacity(0.5) : Color.black.opacity(0.12),
             titleText: "Start Ollama Service",
             descText: "Open your terminal and start the background service."
         ) {
@@ -135,11 +138,13 @@ struct HowItWorksView: View {
     // MARK: Step 3
     @ViewBuilder
     private var step3Model: some View {
+        let iconBg3 = isDark
+            ? LinearGradient(colors: [Color(red: 0.145, green: 0.145, blue: 0.153)], startPoint: .top, endPoint: .bottom)
+            : LinearGradient(colors: [Color(red: 0.88, green: 0.88, blue: 0.90)], startPoint: .top, endPoint: .bottom)
         stepRow(
             icon: "brain",
-            iconBg: LinearGradient(colors: [Color(red: 0.145, green: 0.145, blue: 0.153)],
-                                   startPoint: .top, endPoint: .bottom),
-            iconBorder: Color.black.opacity(0.5),
+            iconBg: iconBg3,
+            iconBorder: isDark ? Color.black.opacity(0.5) : Color.black.opacity(0.12),
             titleText: "Download Model",
             descText: "Pull a lightweight model optimized for document chat."
         ) {
@@ -147,7 +152,7 @@ struct HowItWorksView: View {
                 codeBlock("ollama pull llama3")
                 Text("Downloads ~4GB recommended model.")
                     .font(.system(size: 12))
-                    .foregroundStyle(Color(red: 0.388, green: 0.388, blue: 0.4))
+                    .foregroundStyle(gray)
             }
         }
     }
@@ -236,9 +241,9 @@ struct HowItWorksView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(width: 300)
-        .background(Color(red: 0.067, green: 0.067, blue: 0.067))
+        .background(isDark ? Color(red: 0.067, green: 0.067, blue: 0.067) : Color(red: 0.88, green: 0.89, blue: 0.91))
         .overlay(RoundedRectangle(cornerRadius: 8)
-            .strokeBorder(Color.black.opacity(0.5), lineWidth: 1))
+            .strokeBorder(isDark ? Color.black.opacity(0.5) : Color.black.opacity(0.12), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
@@ -254,7 +259,7 @@ struct HowItWorksView: View {
                 .fill(isDark ? Color.black.opacity(0.3) : Color.black.opacity(0.08))
                 .frame(height: 1)
         }
-        .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
+        .background(isDark ? Color.black.opacity(0.1) : Color(red: 0.94, green: 0.94, blue: 0.96))
 
         HStack(spacing: 12) {
             Spacer()

@@ -116,7 +116,7 @@ final class AppState: ObservableObject {
     private func addToRecents(_ doc: ChatDocument) {
         var recents = recentDocuments.filter { $0.id != doc.id }
         recents.insert(doc, at: 0)
-        recentDocuments = Array(recents.prefix(10))
+        recentDocuments = Array(recents.prefix(20))
     }
 
     // MARK: - Document Processing

@@ -192,7 +192,7 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var recentSection: some View {
-        let recents = appState.recentDocuments.filter { $0.id != appState.currentDocument?.id }.prefix(10)
+        let recents = appState.recentDocuments.filter { $0.id != appState.currentDocument?.id }.prefix(20)
         if !recents.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Recent")
