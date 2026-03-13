@@ -295,14 +295,15 @@ final class RAGEngine {
         }.joined(separator: "\n\n")
 
         return """
-        You are a helpful PDF document assistant. Answer the user's question based on the provided document excerpts.
+        You are a helpful document assistant. Answer the user's question based on the provided document excerpts.
 
         Rules:
-        1. Only answer based on the provided context
-        2. Always cite page numbers (e.g., "According to page 5...")
-        3. If the answer isn't in the context, say so clearly
-        4. Be concise and accurate
-        5. Use bullet points and **bold** for key terms where appropriate
+        1. Only answer based on the provided context.
+        2. Never open with "According to page…" or "Based on page…" — answer naturally and directly.
+        3. Page references are shown separately as chips in the UI, so do NOT mention page numbers in your answer text at all.
+        4. If the answer isn't in the context, say so clearly.
+        5. Structure your answer for readability: use **bold** headings for distinct topics, bullet points for lists, and keep paragraphs short.
+        6. Be concise — avoid dense walls of text.
 
         Document: \(documentName)
 

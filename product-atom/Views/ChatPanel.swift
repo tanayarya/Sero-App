@@ -25,6 +25,10 @@ struct ChatPanel: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusChatInput)) { _ in
             isInputFocused = true
         }
+        .onKeyPress("/") {
+            NotificationCenter.default.post(name: .focusChatInput, object: nil)
+            return .handled
+        }
     }
 
     // MARK: - Toolbar
@@ -179,21 +183,19 @@ struct ChatPanel: View {
     private var inputField: some View {
         HStack(alignment: .bottom, spacing: 0) {
             ChatInputField(text: $inputText, placeholder: "Ask about this document…", onSubmit: sendMessage)
-                .frame(minHeight: 35, maxHeight: 120)
+                .frame(height: inputHeight)
                 .padding(.leading, 10)
-            HStack(spacing: 8) {
-                Button { sendMessage() } label: {
-                    ZStack {
-                        Circle()
-                            .fill(canSend ? Color(red: 0.039, green: 0.518, blue: 1) : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
+            Button { sendMessage() } label: {
+                ZStack {
+                    Circle()
+                        .fill(canSend ? Color(red: 0.039, green: 0.518, blue: 1) : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.plain).disabled(!canSend)
             }
+            .buttonStyle(.plain).disabled(!canSend)
             .padding(.trailing, 4).padding(.bottom, 4)
         }
         .padding(.horizontal, 4).padding(.vertical, 4)
@@ -202,6 +204,17 @@ struct ChatPanel: View {
             .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
+        .animation(.easeInOut(duration: 0.15), value: inputHeight)
+    }
+
+    /// Dynamically compute input height: single line until text wraps, max 120pt
+    private var inputHeight: CGFloat {
+        let singleLine: CGFloat = 35
+        if inputText.isEmpty { return singleLine }
+        let lineCount = inputText.components(separatedBy: "\n").count
+        let estimatedLines = max(lineCount, inputText.count / 40 + 1)
+        let h = singleLine + CGFloat(max(0, estimatedLines - 1)) * 18
+        return min(h, 120)
     }
 
     @ViewBuilder

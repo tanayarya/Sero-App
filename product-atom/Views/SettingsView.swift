@@ -64,6 +64,7 @@ struct SettingsView: View {
                     TextField("localhost:11434", text: $urlDraft)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 13, design: .monospaced))
+                        .multilineTextAlignment(.leading)
                         .onSubmit { commitURL() }
 
                     connectionIndicator

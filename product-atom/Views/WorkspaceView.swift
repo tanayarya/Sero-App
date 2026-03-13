@@ -2,39 +2,88 @@ import SwiftUI
 import UniformTypeIdentifiers
 import PDFKit
 
-// MARK: - Workspace View (Figma: Sidebar 260 | Viewer flex | Chat 391)
+// MARK: - Helpers
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension View {
+    func cursor(_ cursor: NSCursor) -> some View {
+        self.onHover { inside in
+            if inside { cursor.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
+// MARK: - Workspace View (Figma: Sidebar 260 | Viewer flex | Chat resizable)
 
 struct WorkspaceView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
+    @State private var chatWidth: CGFloat = 391
+    @State private var isDragging = false
+    private let chatMinWidth: CGFloat = 280
+    private let chatMaxWidth: CGFloat = 600
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if appState.showSidebar {
-                SidebarView()
-                    .frame(width: 260)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else {
-                sidebarExpandStrip
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                if appState.showSidebar {
+                    SidebarView()
+                        .frame(width: 260)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                } else {
+                    sidebarExpandStrip
+                }
+
+                dividerLine
+
+                DocumentViewerPanel()
+                    .frame(minWidth: 300)
+
+                resizableDivider(geo: geo)
+
+                ChatPanel()
+                    .frame(width: chatWidth)
             }
-
-            Rectangle()
-                .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.1))
-                .frame(width: 1)
-
-            DocumentViewerPanel()
-                .frame(minWidth: 400)
-
-            Rectangle()
-                .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.1))
-                .frame(width: 1)
-
-            ChatPanel()
-                .frame(width: 391)
+            .animation(.easeInOut(duration: 0.2), value: appState.showSidebar)
         }
-        .animation(.easeInOut(duration: 0.2), value: appState.showSidebar)
         .onDrop(of: [.fileURL], isTargeted: nil) { handleDrop($0) }
+    }
+
+    @ViewBuilder
+    private var dividerLine: some View {
+        Rectangle()
+            .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.1))
+            .frame(width: 1)
+    }
+
+    @ViewBuilder
+    private func resizableDivider(geo: GeometryProxy) -> some View {
+        ZStack {
+            Rectangle()
+                .fill(isDragging
+                      ? Color(red: 0.039, green: 0.518, blue: 1).opacity(0.6)
+                      : (isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.1)))
+                .frame(width: isDragging ? 2 : 1)
+        }
+        .frame(width: 8)
+        .contentShape(Rectangle())
+        .cursor(.resizeLeftRight)
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    isDragging = true
+                    let delta = -value.translation.width
+                    let newWidth = (chatWidth + delta).clamped(to: chatMinWidth...chatMaxWidth)
+                    chatWidth = newWidth
+                }
+                .onEnded { _ in isDragging = false }
+        )
     }
 
     // Collapsed sidebar: thin strip with expand button
