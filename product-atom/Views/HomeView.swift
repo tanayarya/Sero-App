@@ -91,13 +91,15 @@ struct HomeView: View {
         .padding(.vertical, 28)
     }
 
-    // To adjust logo size on landing page: change the height value below (currently 48)
+    // To adjust home icon size on landing page: change the height value below (currently 80)
+    // To switch back to logo: change Image("homeicon") to Image("logo")
+    // To switch homeicon to PNG: update homeicon.imageset/Contents.json filename to "homeicon.png"
     @ViewBuilder
     private var logoImage: some View {
-        Image("logo")
+        Image("homeicon")
             .resizable()
             .scaledToFit()
-            .frame(height: 48)
+            .frame(height: 80)
     }
 
     @ViewBuilder

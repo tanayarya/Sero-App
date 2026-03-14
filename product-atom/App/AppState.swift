@@ -19,7 +19,7 @@ final class AppState: ObservableObject {
     @AppStorage("ollamaURL") var ollamaURL: String = "http://localhost:11434"
     @AppStorage("selectedModel") var selectedModel: String = ""
     @AppStorage("embeddingModel") var embeddingModel: String = ""
-    @AppStorage("colorSchemePref") var colorSchemePref: String = "system"
+    @AppStorage("colorSchemePref") var colorSchemePref: String = "dark"
     @AppStorage("recentDocumentsJSON") private var recentDocumentsJSON: String = "[]"
 
     var recentDocuments: [ChatDocument] {

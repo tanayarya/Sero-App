@@ -1,9 +1,8 @@
 {
   "images" : [
     {
-      "filename" : "logo.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename" : "homeicon.svg",
+      "idiom" : "universal"
     }
   ],
   "info" : {
@@ -11,6 +10,7 @@
     "version" : 1
   },
   "properties" : {
+    "preserves-vector-representation" : true,
     "template-rendering-intent" : "original"
   }
 }
