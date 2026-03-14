@@ -14,6 +14,9 @@ struct ChatPanel: View {
     @FocusState private var isInputFocused: Bool
     private var isDark: Bool { colorScheme == .dark }
 
+    @State private var scrollProxy: ScrollViewProxy? = nil
+    @State private var pendingScrollToBottom = false
+
     var body: some View {
         VStack(spacing: 0) {
             chatToolbar
@@ -28,6 +31,15 @@ struct ChatPanel: View {
         .onKeyPress("/") {
             NotificationCenter.default.post(name: .focusChatInput, object: nil)
             return .handled
+        }
+    }
+
+    private func scrollToBottom(animated: Bool = false) {
+        guard let proxy = scrollProxy else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+        } else {
+            proxy.scrollTo("bottom", anchor: .bottom)
         }
     }
 
@@ -77,38 +89,36 @@ struct ChatPanel: View {
     // MARK: - Messages
     @ViewBuilder
     private var messagesArea: some View {
-        if appState.messages.isEmpty {
-            VStack(spacing: 0) {
-                emptyChatState
-                if appState.currentDocument != nil {
-                    suggestionsRowInline
-                        .padding(.bottom, 16)
-                }
-            }
-        } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 4) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 4) {
+                    if appState.messages.isEmpty {
+                        emptyChatState
+                        if appState.currentDocument != nil {
+                            suggestionsRowInline.padding(.bottom, 16)
+                        }
+                    } else {
                         ForEach(appState.messages) { msg in
                             MessageBubbleView(message: msg).id(msg.id)
                         }
                         typingIndicator
-                        Color.clear.frame(height: 8).id("bottom")
                     }
-                    .padding(.horizontal, 20).padding(.vertical, 20)
+                    Color.clear.frame(height: 8).id("bottom")
                 }
-                // Streaming: scroll on every token (assistant message growing)
-                .onChange(of: appState.streamingToken) { _, _ in
-                    guard appState.isStreaming else { return }
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-                // Streaming ended → one final scroll to settle
-                .onChange(of: appState.isStreaming) { _, streaming in
-                    if !streaming {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo("bottom", anchor: .bottom)
-                            }
+                .padding(.horizontal, 20).padding(.vertical, 20)
+            }
+            .onAppear { scrollProxy = proxy }
+            // Stream tokens → scroll without animation for performance
+            .onChange(of: appState.streamingToken) { _, _ in
+                guard appState.isStreaming else { return }
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+            // Stream ended → final settle scroll
+            .onChange(of: appState.isStreaming) { old, new in
+                if old == true && new == false {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
                         }
                     }
                 }
@@ -203,10 +213,9 @@ struct ChatPanel: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(appState.isStreaming
-                              ? Color(red: 0.9, green: 0.25, blue: 0.2)
-                              : (canSend ? Color(red: 0.039, green: 0.518, blue: 1)
-                                         : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)))
+                        .fill(appState.isStreaming || canSend
+                              ? Color(red: 0.039, green: 0.518, blue: 1)
+                              : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
                         .frame(width: 32, height: 32)
                     Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
                         .font(.system(size: 12, weight: .bold))
@@ -270,9 +279,12 @@ struct ChatPanel: View {
     private func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !appState.isStreaming else { return }
-        let toSend = trimmed
         inputText = ""
-        appState.sendMessage(toSend)
+        appState.sendMessage(trimmed)
+        // Scroll after layout has settled to show the new user bubble
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            scrollToBottom(animated: true)
+        }
     }
 }
 

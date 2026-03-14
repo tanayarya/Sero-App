@@ -178,11 +178,11 @@ final class AppState: ObservableObject {
     func stopStreaming() {
         streamingTask?.cancel()
         streamingTask = nil
-        // Mark the last assistant message as no longer streaming
+        // Keep whatever was already streamed — just mark as no longer streaming
         if let idx = messages.indices.last(where: { messages[$0].role == .assistant }) {
             let msg = messages[idx]
             messages[idx] = ChatMessage(
-                id: msg.id, role: .assistant, content: msg.content.isEmpty ? "*(stopped)*" : msg.content,
+                id: msg.id, role: .assistant, content: msg.content,
                 sourcePage: msg.sourcePage, sourcePages: msg.sourcePages, isStreaming: false
             )
         }
