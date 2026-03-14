@@ -56,7 +56,7 @@ struct HomeView: View {
                 )
             dropZoneContent
         }
-        .frame(maxWidth: 600, minHeight: 280)
+        .frame(maxWidth: 600)
         .padding(.horizontal, 20)
         .scaleEffect(isDragOver ? 1.01 : 1.0)
         .animation(.spring(response: 0.3), value: isDragOver)
@@ -67,16 +67,16 @@ struct HomeView: View {
     private var dropZoneContent: some View {
         VStack(spacing: 0) {
             // Logo
-            logoImage.padding(.bottom, 24)
+            logoImage.padding(.bottom, 14)
             Text("Chat with your documents")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.1, green: 0.1, blue: 0.1))
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
             Text("Start a private AI conversation with any PDF, TXT, or\nMarkdown file")
                 .font(.system(size: 15))
                 .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
                 .multilineTextAlignment(.center)
-                .padding(.bottom, 10)
+                .padding(.bottom, 16)
             Button { openFilePicker() } label: {
                 Text("Open Document")
                     .font(.system(size: 13))
@@ -86,9 +86,8 @@ struct HomeView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .padding(.bottom, 32)
         }
-        .padding(.vertical, 28)
+        .padding(.vertical, 20)
     }
 
     // To adjust home icon size on landing page: change the height value below (currently 80)
@@ -99,7 +98,7 @@ struct HomeView: View {
         Image("homeicon")
             .resizable()
             .scaledToFit()
-            .frame(height: 80)
+            .frame(height: 120)
     }
 
     @ViewBuilder
