@@ -87,15 +87,19 @@ final class OllamaService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 120
-        let messages: [OllamaChatMessage] = [
+        let chatMessages: [OllamaChatMessage] = [
             OllamaChatMessage(role: "system", content: systemPrompt),
             OllamaChatMessage(role: "user", content: userMessage)
         ]
-        let body = OllamaChatRequest(model: model, messages: messages, stream: true)
-        req.httpBody = try JSONEncoder().encode(body)
+        let chatBody = OllamaChatRequest(model: model, messages: chatMessages, stream: true)
+        req.httpBody = try JSONEncoder().encode(chatBody)
 
-        let (asyncBytes, _) = try await URLSession.shared.bytes(for: req)
+        let session = URLSession(configuration: .default)
+        defer { session.invalidateAndCancel() }
+        let (asyncBytes, _) = try await session.bytes(for: req)
         for try await line in asyncBytes.lines {
+            // Check for cooperative cancellation on every line
+            try Task.checkCancellation()
             guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
             guard let chunk = try? JSONDecoder().decode(OllamaChatChunk.self, from: data) else { continue }
             if let token = chunk.message?.content, !token.isEmpty {

@@ -54,6 +54,9 @@ final class AppState: ObservableObject {
     /// Increments on every streamed token — used to drive auto-scroll in ChatPanel
     @Published var streamingToken: Int = 0
 
+    // Active streaming task — cancelled when user taps Stop
+    private var streamingTask: Task<Void, Never>?
+
     // Keep the security-scoped URL alive for the session
     private var activeScopedURL: URL?
 
@@ -169,7 +172,21 @@ final class AppState: ObservableObject {
         guard !isStreaming else { return }
         messages.append(ChatMessage(role: .user, content: text))
         isStreaming = true
-        Task { await performRAGChat(userQuestion: text) }
+        streamingTask = Task { await performRAGChat(userQuestion: text) }
+    }
+
+    func stopStreaming() {
+        streamingTask?.cancel()
+        streamingTask = nil
+        // Mark the last assistant message as no longer streaming
+        if let idx = messages.indices.last(where: { messages[$0].role == .assistant }) {
+            let msg = messages[idx]
+            messages[idx] = ChatMessage(
+                id: msg.id, role: .assistant, content: msg.content.isEmpty ? "*(stopped)*" : msg.content,
+                sourcePage: msg.sourcePage, sourcePages: msg.sourcePages, isStreaming: false
+            )
+        }
+        isStreaming = false
     }
 
     @MainActor
@@ -217,6 +234,8 @@ final class AppState: ObservableObject {
                     sourcePage: primaryPage, sourcePages: sourcePages, isStreaming: false
                 )
             }
+        } catch is CancellationError {
+            // User stopped — message already finalized in stopStreaming()
         } catch {
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                 messages[idx] = ChatMessage(
@@ -226,6 +245,7 @@ final class AppState: ObservableObject {
             }
         }
         isStreaming = false
+        streamingTask = nil
     }
 
     // MARK: - Model Fetching

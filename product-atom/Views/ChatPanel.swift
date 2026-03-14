@@ -97,27 +97,20 @@ struct ChatPanel: View {
                     }
                     .padding(.horizontal, 20).padding(.vertical, 20)
                 }
-                // New message added → animated scroll
-                .onChange(of: appState.messages.count) { _, _ in
-                    DispatchQueue.main.async {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    }
-                }
-                // Streaming started → snap to bottom immediately
-                .onChange(of: appState.isStreaming) { _, streaming in
-                    if streaming {
-                        DispatchQueue.main.async {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    }
-                }
-                // Every streaming token → keep scrolling to bottom
-                // Uses a background task coalescer so we don't fight layout
+                // Streaming: scroll on every token (assistant message growing)
                 .onChange(of: appState.streamingToken) { _, _ in
                     guard appState.isStreaming else { return }
                     proxy.scrollTo("bottom", anchor: .bottom)
+                }
+                // Streaming ended → one final scroll to settle
+                .onChange(of: appState.isStreaming) { _, streaming in
+                    if !streaming {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -201,17 +194,27 @@ struct ChatPanel: View {
             ChatInputField(text: $inputText, placeholder: "Ask about this document…", onSubmit: sendMessage)
                 .frame(height: inputHeight)
                 .padding(.leading, 10)
-            Button { sendMessage() } label: {
+            Button {
+                if appState.isStreaming {
+                    appState.stopStreaming()
+                } else {
+                    sendMessage()
+                }
+            } label: {
                 ZStack {
                     Circle()
-                        .fill(canSend ? Color(red: 0.039, green: 0.518, blue: 1) : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3))
+                        .fill(appState.isStreaming
+                              ? Color(red: 0.9, green: 0.25, blue: 0.2)
+                              : (canSend ? Color(red: 0.039, green: 0.518, blue: 1)
+                                         : Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)))
                         .frame(width: 32, height: 32)
                     Image(systemName: appState.isStreaming ? "stop.fill" : "arrow.up")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
                 }
             }
-            .buttonStyle(.plain).disabled(!canSend)
+            .buttonStyle(.plain)
+            .disabled(!appState.isStreaming && !canSend)
             .padding(.trailing, 4).padding(.bottom, 4)
         }
         .padding(.horizontal, 4).padding(.vertical, 4)
@@ -261,7 +264,7 @@ struct ChatPanel: View {
     }
 
     private var canSend: Bool {
-        !inputText.trimmingCharacters(in: .whitespaces).isEmpty && !appState.isStreaming
+        !inputText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private func sendMessage() {
