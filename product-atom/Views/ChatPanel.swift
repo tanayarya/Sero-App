@@ -479,9 +479,13 @@ struct MessageBubbleView: View {
                         Image(systemName: "doc.text").font(.system(size: 8))
                         Text("Page \(page)").font(.system(size: 11))
                     }
-                    .foregroundStyle(Color(red: 0.376, green: 0.647, blue: 1))
+                    .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1))
                     .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color(red: 0.102, green: 0.11, blue: 0.118))
+                    .background(isDark
+                        ? Color(red: 0.039, green: 0.518, blue: 1).opacity(0.15)
+                        : Color(red: 0.039, green: 0.518, blue: 1).opacity(0.10))
+                    .overlay(Capsule()
+                        .strokeBorder(Color(red: 0.039, green: 0.518, blue: 1).opacity(isDark ? 0.3 : 0.25), lineWidth: 1))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)

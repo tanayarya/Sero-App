@@ -32,12 +32,10 @@ struct HeaderBar: View {
         }
     }
 
-    // MARK: - Logo (uses asset "logo")
-    // To adjust logo size in header: change the height value below (currently 44)
-    // To switch back to SVG: change logo.imageset/Contents.json filename to "logo.svg"
+    // MARK: - Logo — white logo on dark, black logo on light
     @ViewBuilder
     private var logoView: some View {
-        Image("logo")
+        Image(isDark ? "logo" : "logoblack")
             .resizable()
             .scaledToFit()
             .frame(height: 30)
