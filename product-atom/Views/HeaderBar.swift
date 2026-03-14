@@ -39,7 +39,7 @@ struct HeaderBar: View {
         Image("logo")
             .resizable()
             .scaledToFit()
-            .frame(height: 32)
+            .frame(height: 34)
     }
 
     // MARK: - Center label
