@@ -51,6 +51,8 @@ final class AppState: ObservableObject {
     @Published var toastMessage: String = ""
     @Published var jumpToPage: Int? = nil
     @Published var showSidebar: Bool = true
+    /// Increments on every streamed token — used to drive auto-scroll in ChatPanel
+    @Published var streamingToken: Int = 0
 
     // Keep the security-scoped URL alive for the session
     private var activeScopedURL: URL?
@@ -206,6 +208,7 @@ final class AppState: ObservableObject {
                         sourcePage: primaryPage, sourcePages: sourcePages, isStreaming: true
                     )
                 }
+                self.streamingToken += 1
             }
 
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {

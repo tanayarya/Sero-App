@@ -97,31 +97,27 @@ struct ChatPanel: View {
                     }
                     .padding(.horizontal, 20).padding(.vertical, 20)
                 }
+                // New message added → animated scroll
                 .onChange(of: appState.messages.count) { _, _ in
-                    // New message added — let layout settle then scroll
                     DispatchQueue.main.async {
-                        withAnimation(.easeOut(duration: 0.25)) {
+                        withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
                     }
                 }
+                // Streaming started → snap to bottom immediately
                 .onChange(of: appState.isStreaming) { _, streaming in
-                    // When streaming starts or ends, scroll to bottom once
                     if streaming {
                         DispatchQueue.main.async {
                             proxy.scrollTo("bottom", anchor: .bottom)
                         }
                     }
                 }
-                .onChange(of: appState.messages.last?.content) { oldVal, newVal in
-                    // Only auto-scroll during streaming if user hasn't scrolled up
+                // Every streaming token → keep scrolling to bottom
+                // Uses a background task coalescer so we don't fight layout
+                .onChange(of: appState.streamingToken) { _, _ in
                     guard appState.isStreaming else { return }
-                    // Throttle: only scroll when content grows by ~100 chars to reduce fighting
-                    let oldLen = oldVal?.count ?? 0
-                    let newLen = newVal?.count ?? 0
-                    if newLen - oldLen > 80 || newLen < 10 {
-                        proxy.scrollTo("bottom", anchor: .bottom)
-                    }
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
         }
