@@ -93,15 +93,35 @@ struct ChatPanel: View {
                             MessageBubbleView(message: msg).id(msg.id)
                         }
                         typingIndicator
-                        Color.clear.frame(height: 1).id("bottom")
+                        Color.clear.frame(height: 8).id("bottom")
                     }
                     .padding(.horizontal, 20).padding(.vertical, 20)
                 }
                 .onChange(of: appState.messages.count) { _, _ in
-                    withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                    // New message added — let layout settle then scroll
+                    DispatchQueue.main.async {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
                 }
-                .onChange(of: appState.messages.last?.content) { _, _ in
-                    proxy.scrollTo("bottom", anchor: .bottom)
+                .onChange(of: appState.isStreaming) { _, streaming in
+                    // When streaming starts or ends, scroll to bottom once
+                    if streaming {
+                        DispatchQueue.main.async {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: appState.messages.last?.content) { oldVal, newVal in
+                    // Only auto-scroll during streaming if user hasn't scrolled up
+                    guard appState.isStreaming else { return }
+                    // Throttle: only scroll when content grows by ~100 chars to reduce fighting
+                    let oldLen = oldVal?.count ?? 0
+                    let newLen = newVal?.count ?? 0
+                    if newLen - oldLen > 80 || newLen < 10 {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 }
             }
         }
@@ -138,7 +158,7 @@ struct ChatPanel: View {
     // MARK: - Suggestions chips row (shown in empty state + input area)
     @ViewBuilder
     private var suggestionsRowInline: some View {
-        let chips = ["Summarize this document", "Find key risks", "Explain main topics"]
+        let chips = ["Summarize this document", "Find important sections", "Highlight critical information"]
         VStack(spacing: 8) {
             ForEach(chips, id: \.self) { chip in
                 Button {
@@ -219,7 +239,7 @@ struct ChatPanel: View {
 
     @ViewBuilder
     private var suggestionsRow: some View {
-        let chips = ["Explain table on page 4", "Summarize document", "Find key risks"]
+        let chips = ["Explain more", "Give examples", "Action items"]
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(chips, id: \.self) { chip in
