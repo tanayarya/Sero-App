@@ -94,9 +94,6 @@ struct ChatPanel: View {
                 LazyVStack(spacing: 4) {
                     if appState.messages.isEmpty {
                         emptyChatState
-                        if appState.currentDocument != nil {
-                            suggestionsRowInline.padding(.bottom, 16)
-                        }
                     } else {
                         ForEach(appState.messages) { msg in
                             MessageBubbleView(message: msg).id(msg.id)
@@ -105,7 +102,7 @@ struct ChatPanel: View {
                     }
                     Color.clear.frame(height: 8).id("bottom")
                 }
-                .padding(.horizontal, 20).padding(.vertical, 20)
+                .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 8)
             }
             .onAppear { scrollProxy = proxy }
             // Stream tokens → scroll without animation for performance
@@ -138,25 +135,47 @@ struct ChatPanel: View {
 
     @ViewBuilder
     private var emptyChatState: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "text.bubble")
-                .font(.system(size: 32))
-                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.4))
-            Text(appState.currentDocument != nil
-                 ? "Ask a question about your document"
-                 : "Open a document to start chatting")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                .multilineTextAlignment(.center)
-            Spacer()
+        GeometryReader { geo in
+            VStack(spacing: 12) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.4))
+                Text(appState.currentDocument != nil
+                     ? "Ask a question about your document"
+                     : "Open a document to start chatting")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                    .multilineTextAlignment(.center)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: 200)
     }
 
-    // MARK: - Suggestions chips row (shown in empty state + input area)
+    // MARK: - Input Section
     @ViewBuilder
-    private var suggestionsRowInline: some View {
+    private var inputSection: some View {
+        VStack(spacing: 6) {
+            // Empty state: show vertical suggestion chips above input
+            if appState.currentDocument != nil && appState.messages.isEmpty {
+                suggestionsColumnAboveInput
+            }
+            inputField
+            // Has messages: show horizontal quick-reply chips below input
+            if appState.currentDocument != nil && !appState.messages.isEmpty {
+                suggestionsRow
+            }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
+        .overlay(alignment: .top) {
+            Rectangle().fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)).frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionsColumnAboveInput: some View {
         let chips = ["Summarize this document", "Find important sections", "Highlight critical information"]
         VStack(spacing: 8) {
             ForEach(chips, id: \.self) { chip in
@@ -177,25 +196,7 @@ struct ChatPanel: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 20)
-    }
-
-    // MARK: - Input Section
-    @ViewBuilder
-    private var inputSection: some View {
-        VStack(spacing: 6) {
-            inputField
-            // Show horizontal chips below input only when messages exist (otherwise vertical ones shown in empty state)
-            if appState.currentDocument != nil && !appState.messages.isEmpty {
-                suggestionsRow
-            }
-        }
-        .padding(.top, 10)
-        .padding(.bottom, appState.messages.isEmpty ? 12 : 0)
-        .background(isDark ? Color.black.opacity(0.1) : Color.black.opacity(0.02))
-        .overlay(alignment: .top) {
-            Rectangle().fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)).frame(height: 1)
-        }
+        .padding(.horizontal, 16)
     }
 
     @ViewBuilder

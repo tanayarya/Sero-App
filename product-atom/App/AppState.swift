@@ -178,13 +178,19 @@ final class AppState: ObservableObject {
     func stopStreaming() {
         streamingTask?.cancel()
         streamingTask = nil
-        // Keep whatever was already streamed — just mark as no longer streaming
-        if let idx = messages.indices.last(where: { messages[$0].role == .assistant }) {
+        // Finalise all assistant messages that still have isStreaming=true
+        for idx in messages.indices where messages[idx].role == .assistant && messages[idx].isStreaming {
             let msg = messages[idx]
-            messages[idx] = ChatMessage(
-                id: msg.id, role: .assistant, content: msg.content,
-                sourcePage: msg.sourcePage, sourcePages: msg.sourcePages, isStreaming: false
-            )
+            // Drop empty assistant placeholders that have nothing to show
+            if msg.content.isEmpty {
+                messages.remove(at: idx)
+            } else {
+                messages[idx] = ChatMessage(
+                    id: msg.id, role: .assistant, content: msg.content,
+                    sourcePage: msg.sourcePage, sourcePages: msg.sourcePages, isStreaming: false
+                )
+            }
+            break
         }
         isStreaming = false
     }
@@ -235,7 +241,10 @@ final class AppState: ObservableObject {
                 )
             }
         } catch is CancellationError {
-            // User stopped — message already finalized in stopStreaming()
+            // User stopped — stopStreaming() already finalised the message and set isStreaming=false
+            // Just make sure nothing leaks
+            streamingTask = nil
+            return
         } catch {
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                 messages[idx] = ChatMessage(
