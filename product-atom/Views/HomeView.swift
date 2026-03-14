@@ -87,8 +87,8 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.top, 24)
-        .padding(.bottom, 24)
+        .padding(.top, 36)
+        .padding(.bottom, 36)
     }
 
     // To adjust home icon size on landing page: change the height value below (currently 80)
@@ -99,7 +99,7 @@ struct HomeView: View {
         Image("homeicon")
             .resizable()
             .scaledToFit()
-            .frame(height: 120)
+            .frame(height: 30)
     }
 
     @ViewBuilder

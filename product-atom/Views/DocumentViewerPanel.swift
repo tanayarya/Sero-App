@@ -296,7 +296,7 @@ struct PlainTextViewer: View {
 
 struct MarkdownViewer: View {
     let url: URL
-    @State private var attributed: AttributedString = AttributedString("")
+    @State private var blocks: [MarkdownBlock] = []
     @State private var isLoading = true
 
     var body: some View {
@@ -304,24 +304,287 @@ struct MarkdownViewer: View {
             if isLoading {
                 ProgressView("Loading…").padding(40)
             } else {
-                Text(attributed)
-                    .font(.system(size: 13))
-                    .textSelection(.enabled)
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(blocks) { block in
+                        MarkdownBlockView(block: block)
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .task(id: url.absoluteString) {
             isLoading = true
             let raw = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            let parsed = (try? AttributedString(
-                markdown: raw,
-                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
-            )) ?? AttributedString(raw)
+            let parsed = MarkdownParser.parse(raw)
             await MainActor.run {
-                attributed = parsed
+                blocks = parsed
                 isLoading = false
             }
         }
+    }
+}
+
+// MARK: - Markdown Block Model
+
+enum MarkdownBlockKind {
+    case h1(String)
+    case h2(String)
+    case h3(String)
+    case paragraph(AttributedString)
+    case bulletItem(AttributedString, indent: Int)
+    case numberedItem(AttributedString, number: Int, indent: Int)
+    case codeBlock(String, lang: String)
+    case horizontalRule
+    case blockquote(AttributedString)
+}
+
+struct MarkdownBlock: Identifiable {
+    let id = UUID()
+    let kind: MarkdownBlockKind
+}
+
+// MARK: - Markdown Block View
+
+struct MarkdownBlockView: View {
+    let block: MarkdownBlock
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        Group {
+            switch block.kind {
+            case .h1(let text):
+                Text(text)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(Color.primary)
+                    .padding(.top, 24).padding(.bottom, 6)
+            case .h2(let text):
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+                        .padding(.top, 20)
+                    Divider()
+                }
+                .padding(.bottom, 4)
+            case .h3(let text):
+                Text(text)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .padding(.top, 14).padding(.bottom, 2)
+            case .paragraph(let attr):
+                Text(attr)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.primary)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .padding(.bottom, 10)
+            case .bulletItem(let attr, let indent):
+                bulletRow(attr: attr, indent: indent)
+            case .numberedItem(let attr, let number, let indent):
+                numberedRow(attr: attr, number: number, indent: indent)
+            case .codeBlock(let code, _):
+                codeBlockView(code: code)
+            case .horizontalRule:
+                Divider().padding(.vertical, 12)
+            case .blockquote(let attr):
+                blockquoteView(attr: attr)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func bulletRow(attr: AttributedString, indent: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 12, alignment: .center)
+            Text(attr)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary)
+                .textSelection(.enabled)
+        }
+        .padding(.leading, CGFloat(indent) * 16)
+        .padding(.bottom, 3)
+    }
+
+    private func numberedRow(attr: AttributedString, number: Int, indent: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(number).")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 20, alignment: .trailing)
+            Text(attr)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary)
+                .textSelection(.enabled)
+        }
+        .padding(.leading, CGFloat(indent) * 16)
+        .padding(.bottom, 3)
+    }
+
+    private func codeBlockView(code: String) -> some View {
+        let bg: Color = colorScheme == .dark
+            ? Color(red: 0.1, green: 0.1, blue: 0.1)
+            : Color(red: 0.94, green: 0.94, blue: 0.96)
+        return ScrollView(.horizontal, showsIndicators: false) {
+            Text(code)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Color.primary)
+                .textSelection(.enabled)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(bg)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+        .padding(.vertical, 8)
+    }
+
+    private func blockquoteView(attr: AttributedString) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.blue.opacity(0.6))
+                .frame(width: 3)
+            Text(attr)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.secondary)
+                .textSelection(.enabled)
+        }
+        .padding(.vertical, 6)
+        .padding(.bottom, 6)
+    }
+}
+
+// MARK: - Markdown Parser
+
+enum MarkdownParser {
+    static func parse(_ raw: String) -> [MarkdownBlock] {
+        let lines = raw.components(separatedBy: "\n")
+        var blocks: [MarkdownBlock] = []
+        var i = 0
+
+        while i < lines.count {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Fenced code block
+            if trimmed.hasPrefix("```") {
+                let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                i += 1
+                var codeLines: [String] = []
+                while i < lines.count && !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                    codeLines.append(lines[i])
+                    i += 1
+                }
+                i += 1 // skip closing ```
+                blocks.append(MarkdownBlock(kind: .codeBlock(codeLines.joined(separator: "\n"), lang: lang)))
+                continue
+            }
+
+            // Headings
+            if trimmed.hasPrefix("### ") {
+                blocks.append(MarkdownBlock(kind: .h3(String(trimmed.dropFirst(4)))))
+                i += 1; continue
+            }
+            if trimmed.hasPrefix("## ") {
+                blocks.append(MarkdownBlock(kind: .h2(String(trimmed.dropFirst(3)))))
+                i += 1; continue
+            }
+            if trimmed.hasPrefix("# ") {
+                blocks.append(MarkdownBlock(kind: .h1(String(trimmed.dropFirst(2)))))
+                i += 1; continue
+            }
+
+            // Horizontal rule
+            if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+                blocks.append(MarkdownBlock(kind: .horizontalRule))
+                i += 1; continue
+            }
+
+            // Blockquote
+            if trimmed.hasPrefix("> ") {
+                let content = String(trimmed.dropFirst(2))
+                let attr = inlineAttr(content)
+                blocks.append(MarkdownBlock(kind: .blockquote(attr)))
+                i += 1; continue
+            }
+
+            // Bullet list
+            if let (indent, content) = bulletMatch(line) {
+                let attr = inlineAttr(content)
+                blocks.append(MarkdownBlock(kind: .bulletItem(attr, indent: indent)))
+                i += 1; continue
+            }
+
+            // Numbered list
+            if let (indent, num, content) = numberedMatch(line) {
+                let attr = inlineAttr(content)
+                blocks.append(MarkdownBlock(kind: .numberedItem(attr, number: num, indent: indent)))
+                i += 1; continue
+            }
+
+            // Blank line — skip
+            if trimmed.isEmpty {
+                i += 1; continue
+            }
+
+            // Paragraph — collect contiguous non-special lines
+            var paraLines: [String] = [trimmed]
+            i += 1
+            while i < lines.count {
+                let next = lines[i]
+                let nextTrimmed = next.trimmingCharacters(in: .whitespaces)
+                let isSpecial = nextTrimmed.isEmpty
+                    || nextTrimmed.hasPrefix("#")
+                    || nextTrimmed.hasPrefix("```")
+                    || nextTrimmed.hasPrefix("> ")
+                    || nextTrimmed == "---" || nextTrimmed == "***" || nextTrimmed == "___"
+                    || bulletMatch(next) != nil
+                    || numberedMatch(next) != nil
+                if isSpecial { break }
+                paraLines.append(nextTrimmed)
+                i += 1
+            }
+            let paraText = paraLines.joined(separator: " ")
+            blocks.append(MarkdownBlock(kind: .paragraph(inlineAttr(paraText))))
+        }
+        return blocks
+    }
+
+    // Detect bullet: "  - item", "* item", "+ item"
+    private static func bulletMatch(_ line: String) -> (indent: Int, content: String)? {
+        var idx = line.startIndex
+        var spaces = 0
+        while idx < line.endIndex && line[idx] == " " { spaces += 1; idx = line.index(after: idx) }
+        let indent = spaces / 2
+        guard idx < line.endIndex else { return nil }
+        let ch = line[idx]
+        guard ch == "-" || ch == "*" || ch == "+" else { return nil }
+        let afterBullet = line.index(after: idx)
+        guard afterBullet < line.endIndex && line[afterBullet] == " " else { return nil }
+        let content = String(line[line.index(after: afterBullet)...]).trimmingCharacters(in: .whitespaces)
+        return (indent, content)
+    }
+
+    // Detect numbered: "1. item", "  2. item"
+    private static func numberedMatch(_ line: String) -> (indent: Int, number: Int, content: String)? {
+        let pattern = #"^(\s*)(\d+)\.\s+(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              let spaceRange = Range(match.range(at: 1), in: line),
+              let numRange = Range(match.range(at: 2), in: line),
+              let contentRange = Range(match.range(at: 3), in: line)
+        else { return nil }
+        let indent = line[spaceRange].count / 2
+        let num = Int(line[numRange]) ?? 1
+        return (indent, num, String(line[contentRange]))
+    }
+
+    // Inline: bold, italic, inline code via AttributedString markdown
+    private static func inlineAttr(_ text: String) -> AttributedString {
+        let opts = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: text, options: opts)) ?? AttributedString(text)
     }
 }
