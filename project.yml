@@ -1,12 +1,12 @@
 name: product-atom
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.tanayarya
   developmentLanguage: en
 
 settings:
   base:
-    PRODUCT_BUNDLE_IDENTIFIER: com.example.productatom
-    PRODUCT_NAME: product-atom
+    PRODUCT_BUNDLE_IDENTIFIER: com.tanayarya.sero
+    PRODUCT_NAME: Sero
     SWIFT_VERSION: 5.0
     MARKETING_VERSION: 1.0
     CURRENT_PROJECT_VERSION: 1
@@ -37,7 +37,7 @@ targets:
       path: product-atom/Info.plist
       properties:
         CFBundleDevelopmentRegion: $(DEVELOPMENT_LANGUAGE)
-        CFBundleDisplayName: $(PRODUCT_NAME)
+        CFBundleDisplayName: Sero
         CFBundleExecutable: $(EXECUTABLE_NAME)
         CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleInfoDictionaryVersion: 6.0

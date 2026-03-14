@@ -33,12 +33,13 @@ struct HeaderBar: View {
     }
 
     // MARK: - Logo (uses asset "logo")
+    // To adjust logo size in header: change the height value below (currently 32)
     @ViewBuilder
     private var logoView: some View {
         Image("logo")
             .resizable()
             .scaledToFit()
-            .frame(height: 22)
+            .frame(height: 32)
     }
 
     // MARK: - Center label

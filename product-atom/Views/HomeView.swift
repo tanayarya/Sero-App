@@ -91,12 +91,13 @@ struct HomeView: View {
         .padding(.vertical, 28)
     }
 
+    // To adjust logo size on landing page: change the height value below (currently 48)
     @ViewBuilder
     private var logoImage: some View {
         Image("logo")
             .resizable()
             .scaledToFit()
-            .frame(height: 32)
+            .frame(height: 48)
     }
 
     @ViewBuilder
