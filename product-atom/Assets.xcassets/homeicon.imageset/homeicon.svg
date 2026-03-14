@@ -1,28 +1,10 @@
-<svg width="160" height="118" viewBox="0 0 160 118" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g filter="url(#filter0_di_1_125)">
-<rect x="40" y="40" width="80" height="38" rx="19" fill="url(#paint0_linear_1_125)" shape-rendering="crispEdges"/>
-<rect x="40.5" y="40.5" width="79" height="37" rx="18.5" stroke="#0A84FF" stroke-opacity="0.2" shape-rendering="crispEdges"/>
-<path d="M78.5255 45.221C78.6581 44.5111 79.2778 43.9964 80 43.9964C80.7222 43.9964 81.3419 44.5111 81.4745 45.221L83.051 53.558C83.2801 54.771 84.229 55.7199 85.442 55.949L93.779 57.5255C94.4889 57.6581 95.0036 58.2778 95.0036 59C95.0036 59.7222 94.4889 60.3419 93.779 60.4745L85.442 62.051C84.229 62.2802 83.2801 63.229 83.051 64.442L81.4745 72.779C81.3419 73.4889 80.7222 74.0036 80 74.0036C79.2778 74.0036 78.6581 73.4889 78.5255 72.779L76.949 64.442C76.7198 63.229 75.771 62.2802 74.558 62.051L66.221 60.4745C65.5111 60.3419 64.9964 59.7222 64.9964 59C64.9964 58.2778 65.5111 57.6581 66.221 57.5255L74.558 55.949C75.771 55.7199 76.7198 54.771 76.949 53.558L78.5255 45.221M92 44V50M95 47H89" stroke="#0A84FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M65 71C65 72.6557 66.3443 74 68 74C69.6557 74 71 72.6557 71 71C71 69.3443 69.6557 68 68 68C66.3443 68 65 69.3443 65 71V71" stroke="#0A84FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
+<svg width="80" height="38" viewBox="0 0 80 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="80" height="38" rx="19" fill="url(#paint0_linear_25_112)"/>
+<rect x="0.5" y="0.5" width="79" height="37" rx="18.5" stroke="#0A84FF" stroke-opacity="0.2"/>
+<path d="M38.5254 5.22101C38.658 4.51107 39.2777 3.99641 39.9999 3.99641C40.7221 3.99641 41.3418 4.51107 41.4744 5.22101L43.0509 13.558C43.2801 14.771 44.2289 15.7199 45.4419 15.949L53.7789 17.5255C54.4889 17.6581 55.0035 18.2778 55.0035 19C55.0035 19.7222 54.4889 20.3419 53.7789 20.4745L45.4419 22.051C44.2289 22.2802 43.2801 23.229 43.0509 24.442L41.4744 32.779C41.3418 33.4889 40.7221 34.0036 39.9999 34.0036C39.2777 34.0036 38.658 33.4889 38.5254 32.779L36.9489 24.442C36.7198 23.229 35.771 22.2802 34.5579 22.051L26.2209 20.4745C25.511 20.3419 24.9963 19.7222 24.9963 19C24.9963 18.2778 25.511 17.6581 26.2209 17.5255L34.5579 15.949C35.771 15.7199 36.7198 14.771 36.9489 13.558L38.5254 5.22101M51.9999 4.00001V10M54.9999 7.00001H48.9999" stroke="#0A84FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M25 31C25 32.6557 26.3443 34 28 34C29.6557 34 31 32.6557 31 31C31 29.3443 29.6557 28 28 28C26.3443 28 25 29.3443 25 31V31" stroke="#0A84FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 <defs>
-<filter id="filter0_di_1_125" x="0" y="0" width="160" height="118" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feOffset/>
-<feGaussianBlur stdDeviation="20"/>
-<feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0.0392157 0 0 0 0 0.517647 0 0 0 0 1 0 0 0 0.1 0"/>
-<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_125"/>
-<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_125" result="shape"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feMorphology radius="1" operator="erode" in="SourceAlpha" result="effect2_innerShadow_1_125"/>
-<feOffset dy="1"/>
-<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.1 0"/>
-<feBlend mode="normal" in2="shape" result="effect2_innerShadow_1_125"/>
-</filter>
-<linearGradient id="paint0_linear_1_125" x1="80" y1="40" x2="80" y2="78" gradientUnits="userSpaceOnUse">
+<linearGradient id="paint0_linear_25_112" x1="40" y1="0" x2="40" y2="38" gradientUnits="userSpaceOnUse">
 <stop stop-color="#0A84FF" stop-opacity="0.15"/>
 <stop offset="1" stop-color="#0A84FF" stop-opacity="0.05"/>
 </linearGradient>
