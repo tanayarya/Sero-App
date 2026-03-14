@@ -66,8 +66,8 @@ struct HomeView: View {
     @ViewBuilder
     private var dropZoneContent: some View {
         VStack(spacing: 0) {
-            // Logo
-            logoImage.padding(.bottom, 14)
+            // Logo — top padding matches bottom padding after button
+            logoImage.padding(.bottom, 6)
             Text("Chat with your documents")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.1, green: 0.1, blue: 0.1))
@@ -87,7 +87,8 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 24)
     }
 
     // To adjust home icon size on landing page: change the height value below (currently 80)
