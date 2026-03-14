@@ -32,10 +32,10 @@ struct HeaderBar: View {
         }
     }
 
-    // MARK: - Logo — white logo on dark, black logo on light
+    // MARK: - Logo — asset catalog serves dark/light variant automatically
     @ViewBuilder
     private var logoView: some View {
-        Image(isDark ? "logo" : "logoblack")
+        Image("logo")
             .resizable()
             .scaledToFit()
             .frame(height: 30)
