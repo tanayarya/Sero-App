@@ -59,7 +59,7 @@ struct SettingsView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                TextField("http://localhost:11434", text: $urlDraft)
+                TextField("", text: $urlDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13, design: .monospaced))
                     .multilineTextAlignment(.leading)
@@ -120,7 +120,7 @@ struct SettingsView: View {
         } header: {
             Text("AI Models")
         } footer: {
-            Text("Recommended: llama3.2 for chat · nomic-embed-text for embeddings\nInstall: ollama pull nomic-embed-text")
+            Text("Recommended: llama3.2 or qwen2.5-coder models")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

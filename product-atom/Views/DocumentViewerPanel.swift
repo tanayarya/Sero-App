@@ -95,7 +95,9 @@ struct DocumentViewerPanel: View {
                 .foregroundStyle(disabled
                     ? Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.3)
                     : Color(red: 0.604, green: 0.627, blue: 0.651))
-                .frame(width: 30, height: 30)
+                // Large invisible hit area — icon visually unchanged
+                .frame(width: 44, height: 36)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(disabled)

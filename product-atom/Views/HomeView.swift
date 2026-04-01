@@ -68,11 +68,11 @@ struct HomeView: View {
         VStack(spacing: 0) {
             // Logo — top padding matches bottom padding after button
             logoImage.padding(.bottom, 6)
-            Text("Chat with your documents")
+            Text("Ask your documents")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.1, green: 0.1, blue: 0.1))
                 .padding(.bottom, 8)
-            Text("Start a private AI conversation with any PDF, TXT, or\nMarkdown file")
+            Text("Start a private AI conversation with any PDF, TXT, or Markdown file")
                 .font(.system(size: 15))
                 .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
                 .multilineTextAlignment(.center)
