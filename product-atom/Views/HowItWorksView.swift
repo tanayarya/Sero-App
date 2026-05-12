@@ -219,7 +219,7 @@ struct HowItWorksView: View {
                     .padding(.horizontal, 18)
                     .frame(height: 36)
                     .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -235,7 +235,7 @@ struct HowItWorksView: View {
                 .padding(.horizontal, 18)
                 .frame(height: 36)
                 .background(testButtonColor)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(isTesting)

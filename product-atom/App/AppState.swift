@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import AppKit
 
 // MARK: - Processing State
 
@@ -9,6 +10,13 @@ enum ProcessingState: Equatable {
     case embedding(progress: Double)
     case ready
     case failed(String)
+}
+
+enum LocalRuntimeState: Equatable {
+    case checking
+    case missing
+    case installed
+    case ready
 }
 
 // MARK: - AppState
@@ -21,6 +29,7 @@ final class AppState: ObservableObject {
     @AppStorage("embeddingModel") var embeddingModel: String = ""
     @AppStorage("colorSchemePref") var colorSchemePref: String = "dark"
     @AppStorage("recentDocumentsJSON") private var recentDocumentsJSON: String = "[]"
+    @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
 
     var recentDocuments: [ChatDocument] {
         get {
@@ -53,9 +62,16 @@ final class AppState: ObservableObject {
     @Published var showSidebar: Bool = true
     /// Increments on every streamed token — used to drive auto-scroll in ChatPanel
     @Published var streamingToken: Int = 0
+    @Published var localRuntimeState: LocalRuntimeState = .checking
+    @Published var onboardingIsChecking = false
+    @Published var onboardingIsPulling = false
+    @Published var onboardingStatusMessage: String?
+    @Published var onboardingDetailText: String?
+    @Published var onboardingProgress: Double?
 
     // Active streaming task — cancelled when user taps Stop
     private var streamingTask: Task<Void, Never>?
+    private var onboardingDownloadTask: Task<Void, Never>?
 
     // Keep the security-scoped URL alive for the session
     private var activeScopedURL: URL?
@@ -278,6 +294,191 @@ final class AppState: ObservableObject {
                 self.ollamaConnected = !models.isEmpty
             }
         }
+    }
+
+    @MainActor
+    func refreshRuntimeStatus() async {
+        onboardingIsChecking = true
+        onboardingStatusMessage = "Checking local setup"
+        onboardingDetailText = "Looking for Ollama on this Mac."
+        onboardingProgress = nil
+
+        let installed = isOllamaAppInstalled()
+        let localReachable = await OllamaService.shared.testConnection(baseURL: "http://localhost:11434")
+        if localReachable {
+            ollamaURL = "http://localhost:11434"
+            localRuntimeState = .ready
+            await refreshModelsAndConnection()
+            onboardingStatusMessage = nil
+            onboardingDetailText = nil
+        } else {
+            localRuntimeState = installed ? .installed : .missing
+            onboardingStatusMessage = installed ? "Ollama is installed" : "Ollama is not installed"
+            onboardingDetailText = installed
+                ? "Open Ollama, then come back here and check again."
+                : "Use the official download page, then return here when the install is complete."
+        }
+        onboardingIsChecking = false
+    }
+
+    @MainActor
+    func refreshModelsAndConnection() async {
+        let models = (try? await OllamaService.shared.fetchModels(baseURL: ollamaURL)) ?? []
+        availableModels = models
+        if selectedModel.isEmpty || !models.contains(where: { $0.name == selectedModel }) {
+            if let chat = models.first(where: { !isEmbeddingModelName($0.name) }) ?? models.first {
+                selectedModel = chat.name
+            }
+        }
+        if embeddingModel.isEmpty || !models.contains(where: { $0.name == embeddingModel }) {
+            let embed = models.first(where: { isEmbeddingModelName($0.name) })
+            embeddingModel = embed?.name ?? ""
+        }
+        ollamaConnected = !models.isEmpty
+    }
+
+    @MainActor
+    func validateRemoteServer(urlString: String) async {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            onboardingStatusMessage = "Enter a server URL"
+            onboardingDetailText = "Use a local network address or a localhost address."
+            onboardingProgress = nil
+            return
+        }
+
+        onboardingIsChecking = true
+        onboardingStatusMessage = "Validating server"
+        onboardingDetailText = trimmed
+        onboardingProgress = nil
+
+        let isReachable = await OllamaService.shared.testConnection(baseURL: trimmed)
+        if isReachable {
+            ollamaURL = trimmed
+            await refreshModelsAndConnection()
+            onboardingStatusMessage = ollamaConnected ? "Server is ready" : "Server responded"
+            onboardingDetailText = ollamaConnected
+                ? "Models were found on this server. Continue when you are ready."
+                : "The server responded, but no models were found yet."
+        } else {
+            availableModels = []
+            ollamaConnected = false
+            onboardingStatusMessage = "Could not reach that server"
+            onboardingDetailText = "Check the address and make sure Ollama is running on that machine."
+        }
+        onboardingIsChecking = false
+    }
+
+    @MainActor
+    func downloadStarterModels(chatModel: String) async {
+        guard !onboardingIsPulling else { return }
+        onboardingIsPulling = true
+        onboardingProgress = 0.05
+        onboardingStatusMessage = "Preparing model setup"
+        onboardingDetailText = chatModel
+
+        do {
+            try await OllamaService.shared.pullModel(baseURL: ollamaURL, model: chatModel) { [weak self] chunk in
+                guard let self else { return }
+                self.onboardingStatusMessage = "Downloading chat model"
+                self.onboardingDetailText = "This can take a few minutes depending on the model size."
+                if let completed = chunk.completed, let total = chunk.total, total > 0 {
+                    self.onboardingProgress = max(0.05, min(0.78, Double(completed) / Double(total) * 0.78))
+                } else {
+                    self.onboardingProgress = nil
+                }
+            }
+
+            onboardingStatusMessage = "Downloading embedding model"
+            onboardingDetailText = "nomic embed text"
+            onboardingProgress = max(onboardingProgress ?? 0.78, 0.82)
+
+            try await OllamaService.shared.pullModel(baseURL: ollamaURL, model: "nomic-embed-text") { [weak self] chunk in
+                guard let self else { return }
+                self.onboardingStatusMessage = "Downloading embedding model"
+                self.onboardingDetailText = "This prepares retrieval so answers stay grounded in your document."
+                if let completed = chunk.completed, let total = chunk.total, total > 0 {
+                    let ratio = Double(completed) / Double(total)
+                    self.onboardingProgress = max(0.82, min(0.98, 0.82 + ratio * 0.16))
+                } else {
+                    self.onboardingProgress = nil
+                }
+            }
+
+            onboardingProgress = 1
+            onboardingStatusMessage = "Model setup is ready"
+            onboardingDetailText = "You can start chatting with your documents now."
+            await refreshModelsAndConnection()
+
+            if availableModels.contains(where: { $0.name == chatModel }) {
+                selectedModel = chatModel
+            }
+            if availableModels.contains(where: { $0.name == "nomic-embed-text" }) {
+                embeddingModel = "nomic-embed-text"
+            }
+        } catch is CancellationError {
+            onboardingStatusMessage = "Download cancelled"
+            onboardingDetailText = "You can choose another model or continue later."
+            onboardingProgress = nil
+        } catch {
+            onboardingStatusMessage = "Model download failed"
+            onboardingDetailText = error.localizedDescription
+            onboardingProgress = nil
+        }
+
+        onboardingIsPulling = false
+        onboardingDownloadTask = nil
+    }
+
+    func beginStarterModelDownload(chatModel: String) {
+        guard !onboardingIsPulling else { return }
+        onboardingDownloadTask = Task { @MainActor [weak self] in
+            await self?.downloadStarterModels(chatModel: chatModel)
+        }
+    }
+
+    func cancelOnboardingDownload() {
+        onboardingDownloadTask?.cancel()
+        onboardingDownloadTask = nil
+    }
+
+    func resetOnboardingStatus() {
+        onboardingDownloadTask?.cancel()
+        onboardingDownloadTask = nil
+        onboardingIsChecking = false
+        onboardingIsPulling = false
+        onboardingStatusMessage = nil
+        onboardingDetailText = nil
+        onboardingProgress = nil
+    }
+
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
+        resetOnboardingStatus()
+    }
+
+    func reopenOnboarding() {
+        hasCompletedOnboarding = false
+        resetOnboardingStatus()
+    }
+
+    func openOllamaDownloadPage() {
+        guard let url = URL(string: "https://ollama.com/download") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openInstalledOllama() {
+        let appURL = URL(fileURLWithPath: "/Applications/Ollama.app")
+        NSWorkspace.shared.openApplication(at: appURL, configuration: .init())
+    }
+
+    private func isOllamaAppInstalled() -> Bool {
+        FileManager.default.fileExists(atPath: "/Applications/Ollama.app")
+    }
+
+    private func isEmbeddingModelName(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return lower.contains("embed") || lower.contains("nomic") || lower.contains("mxbai")
     }
 
     func clearChat() { messages.removeAll() }

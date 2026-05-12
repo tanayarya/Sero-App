@@ -19,6 +19,10 @@ build/
 *.mode2v3
 *.perspectivev3
 xcuserdata/
+.derivedData/
+DerivedData/
+build/
+
 
 # Node
 node_modules/

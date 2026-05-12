@@ -45,6 +45,7 @@ struct SettingsView: View {
         Form {
             ollamaSection
             modelsSection
+            setupSection
             appearanceSection
         }
         .formStyle(.grouped)
@@ -123,6 +124,27 @@ struct SettingsView: View {
             Text("Recommended: llama3.2 or qwen2.5-coder models")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var setupSection: some View {
+        Section("Setup") {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Setup Assistant")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("Open the guided setup flow again at any time.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Open") {
+                    appState.reopenOnboarding()
+                    dismiss()
+                }
+                .controlSize(.small)
+            }
         }
     }
 

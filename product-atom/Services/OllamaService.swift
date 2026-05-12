@@ -36,6 +36,17 @@ struct OllamaChatChunk: Decodable {
     let done: Bool
 }
 
+struct OllamaPullRequest: Encodable {
+    let model: String
+    let stream: Bool
+}
+
+struct OllamaPullChunk: Decodable {
+    let status: String
+    let completed: Int64?
+    let total: Int64?
+}
+
 // MARK: - Service
 
 final class OllamaService {
@@ -72,6 +83,31 @@ final class OllamaService {
         let (data, _) = try await URLSession.shared.data(for: req)
         let resp = try JSONDecoder().decode(OllamaEmbedResponse.self, from: data)
         return resp.embedding
+    }
+
+    func pullModel(
+        baseURL: String,
+        model: String,
+        onUpdate: @escaping (OllamaPullChunk) -> Void
+    ) async throws {
+        let base = normalizeURL(baseURL)
+        guard let url = URL(string: "\(base)/api/pull") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 60 * 60
+        req.httpBody = try JSONEncoder().encode(OllamaPullRequest(model: model, stream: true))
+
+        let session = URLSession(configuration: .default)
+        defer { session.invalidateAndCancel() }
+        let (asyncBytes, _) = try await session.bytes(for: req)
+        for try await line in asyncBytes.lines {
+            try Task.checkCancellation()
+            guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
+            guard let chunk = try? JSONDecoder().decode(OllamaPullChunk.self, from: data) else { continue }
+            await MainActor.run { onUpdate(chunk) }
+            if chunk.status.lowercased() == "success" { break }
+        }
     }
 
     func streamChat(

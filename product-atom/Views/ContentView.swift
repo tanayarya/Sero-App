@@ -5,12 +5,16 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 0) {
-                HeaderBar()
-                Divider()
-                mainContent
+            if appState.hasCompletedOnboarding {
+                VStack(spacing: 0) {
+                    HeaderBar()
+                    Divider()
+                    mainContent
+                }
+                toastOverlay
+            } else {
+                OnboardingView()
             }
-            toastOverlay
         }
         .preferredColorScheme(appState.preferredColorScheme)
         .sheet(isPresented: $appState.showSettings) {
@@ -19,7 +23,12 @@ struct ContentView: View {
         .sheet(isPresented: $appState.showHowItWorks) {
             HowItWorksView().environmentObject(appState)
         }
-        .onAppear { appState.fetchModels() }
+        .onAppear {
+            appState.fetchModels()
+            if !appState.hasCompletedOnboarding {
+                Task { await appState.refreshRuntimeStatus() }
+            }
+        }
         .onKeyPress("/") {
             NotificationCenter.default.post(name: .focusChatInput, object: nil)
             return .handled
