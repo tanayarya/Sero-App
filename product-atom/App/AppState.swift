@@ -383,23 +383,7 @@ final class AppState: ObservableObject {
                 self.onboardingStatusMessage = "Downloading chat model"
                 self.onboardingDetailText = "This can take a few minutes depending on the model size."
                 if let completed = chunk.completed, let total = chunk.total, total > 0 {
-                    self.onboardingProgress = max(0.05, min(0.78, Double(completed) / Double(total) * 0.78))
-                } else {
-                    self.onboardingProgress = nil
-                }
-            }
-
-            onboardingStatusMessage = "Downloading embedding model"
-            onboardingDetailText = "nomic embed text"
-            onboardingProgress = max(onboardingProgress ?? 0.78, 0.82)
-
-            try await OllamaService.shared.pullModel(baseURL: ollamaURL, model: "nomic-embed-text") { [weak self] chunk in
-                guard let self else { return }
-                self.onboardingStatusMessage = "Downloading embedding model"
-                self.onboardingDetailText = "This prepares retrieval so answers stay grounded in your document."
-                if let completed = chunk.completed, let total = chunk.total, total > 0 {
-                    let ratio = Double(completed) / Double(total)
-                    self.onboardingProgress = max(0.82, min(0.98, 0.82 + ratio * 0.16))
+                    self.onboardingProgress = max(0.05, min(0.96, Double(completed) / Double(total) * 0.91))
                 } else {
                     self.onboardingProgress = nil
                 }
@@ -412,9 +396,6 @@ final class AppState: ObservableObject {
 
             if availableModels.contains(where: { $0.name == chatModel }) {
                 selectedModel = chatModel
-            }
-            if availableModels.contains(where: { $0.name == "nomic-embed-text" }) {
-                embeddingModel = "nomic-embed-text"
             }
         } catch is CancellationError {
             onboardingStatusMessage = "Download cancelled"

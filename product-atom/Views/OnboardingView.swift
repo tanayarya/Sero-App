@@ -195,29 +195,41 @@ struct OnboardingView: View {
                     }
                 }
 
-                if let message = appState.onboardingStatusMessage, !message.isEmpty {
-                    progressPanel
+                if showInlineLocalStatus {
+                    inlineStatusRow
                 }
 
                 HStack(spacing: 12) {
-                    primaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download recommended setup") {
-                        appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
-                    }
-                    .disabled(appState.onboardingIsPulling)
-
-                    secondaryButton("Use current models") {
-                        Task {
-                            await appState.refreshModelsAndConnection()
-                            if appState.ollamaConnected {
-                                appState.completeOnboarding()
+                    if hasDetectedChatModels {
+                        primaryButton("Continue with current models") {
+                            Task {
+                                await appState.refreshModelsAndConnection()
+                                if appState.ollamaConnected {
+                                    appState.completeOnboarding()
+                                }
                             }
                         }
+                        .disabled(appState.onboardingIsPulling)
+
+                        secondaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download selected model") {
+                            appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
+                        }
+                        .disabled(appState.onboardingIsPulling)
+                    } else {
+                        primaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download selected model") {
+                            appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
+                        }
+                        .disabled(appState.onboardingIsPulling)
+
+                        secondaryButton("Refresh models") {
+                            Task { await appState.refreshModelsAndConnection() }
+                        }
+                        .disabled(appState.onboardingIsPulling)
                     }
-                    .disabled(appState.onboardingIsPulling)
                 }
 
-                if !appState.availableModels.isEmpty {
-                    existingModelsSection
+                if hasDetectedChatModels {
+                    currentModelsStrip
                 }
             }
         }
@@ -232,13 +244,22 @@ struct OnboardingView: View {
 
     private var remoteSetupCard: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Remote server")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
-                Text("Enter an Ollama server address, validate it, then continue with the models on that machine.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Remote server")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                    Text("Enter an Ollama server address, validate it, then continue with the models on that machine.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                }
+                Spacer()
+                if appState.onboardingIsChecking {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(onboardingBlue)
+                        .padding(.top, 8)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -267,8 +288,8 @@ struct OnboardingView: View {
                 }
             }
 
-            if let message = appState.onboardingStatusMessage, !message.isEmpty {
-                progressPanel
+            if showRemoteStatusLine {
+                inlineStatusRow
             }
 
             if !appState.availableModels.isEmpty && appState.ollamaConnected {
@@ -284,13 +305,13 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28))
     }
 
-    private var existingModelsSection: some View {
+    private var currentModelsStrip: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Detected models")
+            Text("Current models on this Mac")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
-                ForEach(appState.availableModels.prefix(6)) { model in
+                ForEach(detectedChatModels.prefix(4)) { model in
                     HStack(spacing: 10) {
                         Circle()
                             .fill(onboardingBlue.opacity(0.18))
@@ -311,9 +332,6 @@ struct OnboardingView: View {
                     .background(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.035))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-            }
-            primaryButton("Continue") {
-                appState.completeOnboarding()
             }
         }
     }
@@ -340,38 +358,48 @@ struct OnboardingView: View {
         Button {
             selectedStarterModel = model
         } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(model.title)
-                                .font(.system(size: 16, weight: .semibold))
-                            if model.isRecommended {
-                                miniBadge("Best")
-                            }
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(model.title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                        if model.isRecommended {
+                            miniBadge("Best")
                         }
-                        Text(model.modelName)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(isDark ? Color.white.opacity(0.82) : Color.black.opacity(0.72))
                     }
-                    Spacer()
-                    if selectedStarterModel == model {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(onboardingBlue)
+                    Text(model.summary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                        .multilineTextAlignment(.leading)
+                    HStack(spacing: 8) {
+                        infoChip(model.ramLabel)
+                        if let note = model.note {
+                            infoChip(note)
+                        }
                     }
                 }
-                Text(model.summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                HStack(spacing: 10) {
-                    infoChip(model.ramLabel)
-                    if let note = model.note {
-                        infoChip(note)
+                Spacer(minLength: 12)
+                HStack {
+                    VStack(alignment: .trailing, spacing: 10) {
+                        Text(model.memoryTag)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(isDark ? Color.white.opacity(0.86) : Color.black.opacity(0.76))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
+                            .clipShape(Capsule())
+                        Spacer(minLength: 0)
+                    }
+                    if selectedStarterModel == model {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(onboardingBlue)
                     }
                 }
             }
             .padding(16)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(cardFill(selected: selectedStarterModel == model))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
@@ -417,39 +445,6 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
     }
 
-    private var progressPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let message = appState.onboardingStatusMessage {
-                Text(message)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
-            }
-            if let detail = appState.onboardingDetailText, !detail.isEmpty {
-                Text(detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-            }
-            if let progress = appState.onboardingProgress {
-                ProgressView(value: progress)
-                    .tint(onboardingBlue)
-            } else if appState.onboardingIsPulling || appState.onboardingIsChecking {
-                ProgressView()
-                    .tint(onboardingBlue)
-            }
-            if appState.onboardingIsPulling {
-                Button("Cancel download") {
-                    appState.cancelOnboardingDownload()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isDark ? .white : Color.black.opacity(0.72))
-            }
-        }
-        .padding(16)
-        .background(isDark ? Color.white.opacity(0.045) : Color.black.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-    }
-
     private var footerActions: some View {
         HStack {
             Text("You can always change this later in Settings.")
@@ -464,7 +459,11 @@ struct OnboardingView: View {
             .foregroundStyle(isDark ? .white : Color.black.opacity(0.75))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.05))
+            .background(isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.09))
+            .overlay(
+                Capsule()
+                    .strokeBorder(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08), lineWidth: 1)
+            )
             .clipShape(Capsule())
         }
     }
@@ -576,6 +575,62 @@ struct OnboardingView: View {
         appState.availableModels.filter { !isEmbeddingName($0.name) }
     }
 
+    private var detectedChatModels: [OllamaModel] {
+        appState.availableModels.filter { !isEmbeddingName($0.name) }
+    }
+
+    private var hasDetectedChatModels: Bool {
+        !detectedChatModels.isEmpty
+    }
+
+    private var showInlineLocalStatus: Bool {
+        appState.onboardingIsPulling || (appState.onboardingStatusMessage?.isEmpty == false)
+    }
+
+    private var showRemoteStatusLine: Bool {
+        appState.onboardingIsChecking || (appState.onboardingStatusMessage?.isEmpty == false)
+    }
+
+    private var inlineStatusRow: some View {
+        HStack(spacing: 10) {
+            if appState.onboardingIsPulling || appState.onboardingIsChecking {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(onboardingBlue)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                if let message = appState.onboardingStatusMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isDark ? .white.opacity(0.92) : Color.black.opacity(0.78))
+                }
+                if let detail = appState.onboardingDetailText, !detail.isEmpty, appState.onboardingIsPulling {
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                }
+            }
+            Spacer()
+            if let progress = appState.onboardingProgress, appState.onboardingIsPulling {
+                ProgressView(value: progress)
+                    .frame(width: 120)
+                    .tint(onboardingBlue)
+            }
+            if appState.onboardingIsPulling {
+                Button("Cancel") {
+                    appState.cancelOnboardingDownload()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isDark ? .white : Color.black.opacity(0.72))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(isDark ? Color.white.opacity(0.045) : Color.black.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
     private func isEmbeddingName(_ name: String) -> Bool {
         let lower = name.lowercased()
         return lower.contains("embed") || lower.contains("nomic") || lower.contains("mxbai")
@@ -636,6 +691,15 @@ enum StarterModel: String, CaseIterable, Equatable {
         case .llama3b: return "llama3.2:3b"
         case .qwenCoder7b: return "qwen2.5-coder:7b"
         case .llama8b: return "llama3.1:8b"
+        }
+    }
+
+    var memoryTag: String {
+        switch self {
+        case .qwen3b, .llama3b:
+            return "8 GB"
+        case .qwenCoder7b, .llama8b:
+            return "16 GB+"
         }
     }
 

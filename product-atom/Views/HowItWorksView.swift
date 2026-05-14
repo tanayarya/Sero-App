@@ -1,278 +1,203 @@
 import SwiftUI
 
-// MARK: - How It Works Modal
-
 struct HowItWorksView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
-    @State private var isTesting = false
-    @State private var testResult: Bool?
+    @State private var isChecking = false
+    @State private var isReady = false
 
     private var isDark: Bool { colorScheme == .dark }
     private let blue = Color(red: 0.039, green: 0.518, blue: 1)
-    private let subtext = Color(red: 0.55, green: 0.55, blue: 0.57)
-    private let surfaceBg: Color = Color(red: 0.118, green: 0.118, blue: 0.128)
-    private let cardBg: Color = Color(red: 0.16, green: 0.16, blue: 0.175)
-    private let border: Color = Color.white.opacity(0.07)
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().opacity(0.15)
-            steps
-            Divider().opacity(0.15)
-            footer
+        ZStack {
+            modalBackground
+            VStack(spacing: 0) {
+                header
+                steps
+                footer
+            }
+            .padding(28)
         }
-        .frame(width: 560)
-        .background(surfaceBg)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .frame(width: 620)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(isDark ? 0.1 : 0.08), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.45), radius: 40, x: 0, y: 20)
+        .shadow(color: .black.opacity(0.28), radius: 40, x: 0, y: 24)
     }
 
-    // MARK: Header
+    private var modalBackground: some View {
+        LinearGradient(
+            colors: [
+                isDark ? Color(red: 0.13, green: 0.14, blue: 0.16) : Color(red: 0.94, green: 0.95, blue: 0.97),
+                isDark ? Color(red: 0.09, green: 0.10, blue: 0.12) : Color(red: 0.9, green: 0.92, blue: 0.95)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Set up Sero")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text("Runs locally via Ollama — private and offline.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(subtext)
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("How Sero works")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                Text("Bring in a document, let Sero understand it, then ask questions in plain language.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                    .frame(maxWidth: 430, alignment: .leading)
             }
             Spacer()
-            Button { dismiss() } label: {
+            Button {
+                dismiss()
+            } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(subtext)
-                    .frame(width: 26, height: 26)
-                    .background(Color.white.opacity(0.07))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(isDark ? .white.opacity(0.72) : Color.black.opacity(0.65))
+                    .frame(width: 32, height: 32)
+                    .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.05))
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 22)
     }
 
-    // MARK: Steps
     private var steps: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            stepRow(number: "1", icon: "arrow.down.to.line",
-                    title: "Install Ollama",
-                    desc: "Install the Ollama runtime to run AI models locally.") {
-                HStack(spacing: 10) {
-                    Button { openOllamaURL() } label: {
-                        Label("Download Ollama", systemImage: "arrow.down.circle.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .frame(height: 30)
-                            .background(blue)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    Text("ollama.com")
-                        .font(.system(size: 12))
-                        .foregroundStyle(blue.opacity(0.8))
-                }
-            }
-
-            stepDivider
-
-            stepRow(number: "2", icon: "terminal",
-                    title: "Start Ollama Service",
-                    desc: "Open Terminal and run the background service.") {
-                codeBlock("ollama serve")
-            }
-
-            stepDivider
-
-            stepRow(number: "3", icon: "brain",
-                    title: "Download a Model",
-                    desc: "Pull a lightweight model optimised for document chat.") {
-                VStack(alignment: .leading, spacing: 6) {
-                    codeBlock("ollama pull llama3")
-                    Text("~4 GB download · stored locally")
-                        .font(.system(size: 11))
-                        .foregroundStyle(subtext)
-                }
-            }
-
-            stepDivider
-
-            // Step 4 — ready
-            let green = Color(red: 0.157, green: 0.78, blue: 0.435)
-            HStack(alignment: .top, spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(green.opacity(0.12))
-                        .frame(width: 34, height: 34)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(green)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("You're ready")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(green)
-                    Text("Sero auto-detects Ollama once it's running.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(subtext)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 18)
+        VStack(spacing: 14) {
+            glassStep(
+                number: "01",
+                title: "Open a file",
+                detail: "Choose a PDF, TXT, or Markdown file from your Mac and Sero prepares it for chat."
+            )
+            glassStep(
+                number: "02",
+                title: "Pick a model",
+                detail: "Use the model already on this Mac or download one that fits your device."
+            )
+            glassStep(
+                number: "03",
+                title: "Ask naturally",
+                detail: "Ask for summaries, specific details, or quick takeaways without leaving the document."
+            )
         }
+        .padding(.top, 24)
     }
 
-    private var stepDivider: some View {
-        Divider()
-            .opacity(0.10)
-            .padding(.horizontal, 28)
-    }
-
-    @ViewBuilder
-    private func stepRow<Extra: View>(
-        number: String,
-        icon: String,
-        title: String,
-        desc: String,
-        @ViewBuilder extra: () -> Extra
-    ) -> some View {
+    private func glassStep(number: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            // Icon badge
             ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-                    .frame(width: 34, height: 34)
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.75))
+                Circle()
+                    .fill(blue.opacity(isDark ? 0.18 : 0.12))
+                    .frame(width: 40, height: 40)
+                Text(number)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(blue)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text(desc)
-                    .font(.system(size: 12))
-                    .foregroundStyle(subtext)
-                extra().padding(.top, 6)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 16)
+        .padding(18)
+        .background(isDark ? Color.white.opacity(0.05) : Color.white.opacity(0.84))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.white.opacity(isDark ? 0.08 : 0.06), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    // MARK: Code Block
-    @ViewBuilder
-    private func codeBlock(_ command: String) -> some View {
-        HStack(spacing: 8) {
-            Text(command)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Color.white.opacity(0.85))
-                .textSelection(.enabled)
+    private var footer: some View {
+        HStack(spacing: 12) {
+            statusPill
             Spacer()
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(command, forType: .string)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11))
-                    .foregroundStyle(subtext)
-                    .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            secondaryButton("Close") {
+                dismiss()
             }
-            .buttonStyle(.plain)
+            if isReady {
+                primaryButton("Dive in") {
+                    dismiss()
+                }
+            } else {
+                primaryButton(isChecking ? "Checking" : "Check setup") {
+                    checkConnection()
+                }
+                .disabled(isChecking)
+            }
+        }
+        .padding(.top, 24)
+    }
+
+    private var statusPill: some View {
+        HStack(spacing: 8) {
+            if isChecking {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(blue)
+            } else {
+                Circle()
+                    .fill(isReady ? Color.successGreen : Color.warningAmber)
+                    .frame(width: 8, height: 8)
+            }
+            Text(isChecking ? "Checking your local setup" : (isReady ? "Sero is ready to chat" : "Check your setup when you are ready"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isDark ? .white.opacity(0.82) : Color.black.opacity(0.72))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(Color.black.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
+        .background(isDark ? Color.white.opacity(0.05) : Color.white.opacity(0.75))
+        .clipShape(Capsule())
     }
 
-    // MARK: Footer
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            Button { dismiss() } label: {
-                Text("Cancel")
-                    .font(.system(size: 13))
-                    .foregroundStyle(subtext)
-                    .padding(.horizontal, 18)
-                    .frame(height: 36)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-            .buttonStyle(.plain)
-
-            Button { testConnection() } label: {
-                HStack(spacing: 6) {
-                    if isTesting {
-                        ProgressView().controlSize(.mini).tint(.white)
-                    }
-                    Text(testButtonLabel)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 18)
-                .frame(height: 36)
-                .background(testButtonColor)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(isTesting)
+    private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(blue)
+                .clipShape(Capsule())
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 18)
+        .buttonStyle(.plain)
     }
 
-    // MARK: Helpers
-    private var testButtonLabel: String {
-        if isTesting { return "Testing…" }
-        if let r = testResult { return r ? "Connected ✓" : "Retry" }
-        return "Test Connection"
+    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isDark ? .white : Color.black.opacity(0.75))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.82))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
-    private var testButtonColor: Color {
-        if let r = testResult { return r ? Color(red: 0.157, green: 0.78, blue: 0.435) : Color.red.opacity(0.8) }
-        return blue
-    }
-
-    private func testConnection() {
-        isTesting = true
-        testResult = nil
+    private func checkConnection() {
+        isChecking = true
+        isReady = false
         Task {
             let ok = await OllamaService.shared.testConnection(baseURL: appState.ollamaURL)
             await MainActor.run {
-                testResult = ok
-                isTesting = false
-                if ok { appState.fetchModels() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { testResult = nil }
+                isReady = ok
+                isChecking = false
+                if ok {
+                    appState.fetchModels()
+                }
             }
-        }
-    }
-
-    private func openOllamaURL() {
-        if let url = URL(string: "https://ollama.com") {
-            NSWorkspace.shared.open(url)
         }
     }
 }
