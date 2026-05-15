@@ -136,29 +136,32 @@ struct ChatPanel: View {
     @ViewBuilder
     private var emptyChatState: some View {
         GeometryReader { geo in
-            VStack(spacing: 12) {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651).opacity(0.4))
-                Text(appState.currentDocument != nil
-                     ? "Ask a question about your document"
-                     : "Open a document to start chatting")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                    .multilineTextAlignment(.center)
+            VStack {
+                Spacer(minLength: 0)
+                VStack(spacing: 12) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundStyle(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.88))
+                    Text(appState.currentDocument != nil
+                         ? "Ask a question about your document"
+                         : "Open a document to start chatting")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                        .multilineTextAlignment(.center)
+                }
+                Spacer(minLength: 0)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(width: geo.size.width, height: max(geo.size.height, 320))
         }
-        .frame(minHeight: 200)
+        .frame(minHeight: 320)
     }
 
     // MARK: - Input Section
     @ViewBuilder
     private var inputSection: some View {
         VStack(spacing: 6) {
-            // Empty state: show vertical suggestion chips above input
             if appState.currentDocument != nil && appState.messages.isEmpty {
-                suggestionsColumnAboveInput
+                suggestionsRowAboveInput
             }
             inputField
             // Has messages: show horizontal quick-reply chips below input
@@ -175,28 +178,30 @@ struct ChatPanel: View {
     }
 
     @ViewBuilder
-    private var suggestionsColumnAboveInput: some View {
+    private var suggestionsRowAboveInput: some View {
         let chips = ["Summarize this document", "Find important sections", "Highlight critical information"]
-        VStack(spacing: 8) {
-            ForEach(chips, id: \.self) { chip in
-                Button {
-                    inputText = ""
-                    appState.sendMessage(chip)
-                } label: {
-                    Text(chip)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
-                        .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
-                        .overlay(RoundedRectangle(cornerRadius: 100)
-                            .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 100))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(chips, id: \.self) { chip in
+                    Button {
+                        inputText = ""
+                        appState.sendMessage(chip)
+                    } label: {
+                        Text(chip)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
+                            .overlay(Capsule()
+                                .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1), lineWidth: 1))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
     }
 
     @ViewBuilder

@@ -57,6 +57,7 @@ struct HomeView: View {
             dropZoneContent
         }
         .frame(maxWidth: 600)
+        .frame(minHeight: 272)
         .padding(.horizontal, 20)
         .scaleEffect(isDragOver ? 1.01 : 1.0)
         .animation(.spring(response: 0.3), value: isDragOver)
@@ -67,7 +68,7 @@ struct HomeView: View {
     private var dropZoneContent: some View {
         VStack(spacing: 0) {
             // Logo — top padding matches bottom padding after button
-            logoImage.padding(.bottom, 6)
+            logoImage.padding(.bottom, 10)
             Text("Ask your documents")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.1, green: 0.1, blue: 0.1))
@@ -87,8 +88,8 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.top, 36)
-        .padding(.bottom, 36)
+        .padding(.top, 42)
+        .padding(.bottom, 42)
     }
 
     // To adjust home icon size on landing page: change the height value below (currently 80)
@@ -99,7 +100,7 @@ struct HomeView: View {
         Image("homeicon")
             .resizable()
             .scaledToFit()
-            .frame(height: 30)
+            .frame(height: 26)
     }
 
     @ViewBuilder

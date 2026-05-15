@@ -4,40 +4,55 @@ struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
 
+    @State private var introStage: IntroStage = .splash
+    @State private var featureIndex = 0
     @State private var useRemoteServer = false
+    @State private var remoteServerValidated = false
     @State private var customURL = ""
     @State private var selectedStarterModel = StarterModel.qwenCoder7b
     @State private var hasAppeared = false
+    @State private var introTask: Task<Void, Never>?
 
     private var isDark: Bool { colorScheme == .dark }
     private let onboardingBlue = Color(red: 0.039, green: 0.518, blue: 1)
+    private let featureCards = OnboardingFeature.allCases
 
     var body: some View {
         ZStack {
             background
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-                    hero
-                    connectionCards
-                    if useRemoteServer {
-                        remoteSetupCard
-                    } else {
-                        localSetupCard
-                    }
-                    footerActions
-                }
-                .padding(.horizontal, 28)
-                .padding(.top, 32)
-                .padding(.bottom, 28)
-                .frame(maxWidth: 980)
-                .frame(maxWidth: .infinity)
-            }
+            stageContent
         }
+        .animation(.spring(response: 0.55, dampingFraction: 0.9), value: introStage)
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: featureIndex)
         .onAppear {
             guard !hasAppeared else { return }
             hasAppeared = true
+            introStage = .splash
+            featureIndex = 0
+            useRemoteServer = false
+            remoteServerValidated = false
             customURL = appState.ollamaURL
             Task { await appState.refreshRuntimeStatus() }
+            startIntroFlow()
+        }
+        .onDisappear {
+            introTask?.cancel()
+            introTask = nil
+        }
+    }
+
+    @ViewBuilder
+    private var stageContent: some View {
+        switch introStage {
+        case .splash:
+            splashScreen
+                .transition(.opacity.combined(with: .scale(scale: 1.02)))
+        case .features:
+            featureScreen
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
+        case .setup:
+            setupScreen
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
@@ -67,13 +82,102 @@ struct OnboardingView: View {
         }
     }
 
-    private var hero: some View {
-        VStack(spacing: 14) {
+    private var splashScreen: some View {
+        VStack(spacing: 18) {
             Image("logo")
                 .resizable()
                 .scaledToFit()
-                .frame(height: 38)
-                .padding(.top, 6)
+                .frame(height: 42)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var featureScreen: some View {
+        let feature = featureCards[featureIndex]
+
+        return VStack(spacing: 28) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: 24) {
+                FeaturePulseIcon(
+                    systemName: feature.icon,
+                    tint: onboardingBlue,
+                    isDark: isDark
+                )
+
+                VStack(spacing: 14) {
+                    Text(feature.title)
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 680)
+
+                    Text(feature.detail)
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 620)
+                }
+
+                HStack(spacing: 10) {
+                    ForEach(Array(featureCards.enumerated()), id: \.offset) { index, _ in
+                        Capsule()
+                            .fill(index == featureIndex ? onboardingBlue : Color.white.opacity(isDark ? 0.14 : 0.28))
+                            .frame(width: index == featureIndex ? 28 : 10, height: 10)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 32)
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 18) {
+                Button(action: advanceIntro) {
+                    HStack(spacing: 10) {
+                        Text(featureIndex == featureCards.count - 1 ? "Set up now" : "Next")
+                            .font(.system(size: 14, weight: .semibold))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 14)
+                    .background(onboardingBlue)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(1.0)
+            }
+            .padding(.bottom, 42)
+        }
+        .frame(maxWidth: 900, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var setupScreen: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 24) {
+                hero
+                connectionCards
+                if useRemoteServer {
+                    remoteSetupCard
+                } else {
+                    localSetupCard
+                }
+                footerActions
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 32)
+            .padding(.bottom, 28)
+            .frame(maxWidth: 980)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var hero: some View {
+        VStack(spacing: 14) {
             Text("Set up a local runtime or connect to another machine to start chatting with your documents.")
                 .font(.system(size: 15))
                 .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
@@ -91,6 +195,7 @@ struct OnboardingView: View {
                 isSelected: !useRemoteServer
             ) {
                 useRemoteServer = false
+                remoteServerValidated = false
                 Task { await appState.refreshRuntimeStatus() }
             }
 
@@ -101,6 +206,7 @@ struct OnboardingView: View {
                 isSelected: useRemoteServer
             ) {
                 useRemoteServer = true
+                remoteServerValidated = false
                 appState.resetOnboardingStatus()
             }
         }
@@ -184,10 +290,16 @@ struct OnboardingView: View {
                     }
                 }
             } else {
+                if hasDetectedChatModels {
+                    currentModelsSection
+                }
+
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Choose your starter model")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                    if hasDetectedChatModels {
+                        Text("Choose your starter model")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                    }
                     VStack(spacing: 12) {
                         ForEach(StarterModel.allCases, id: \.self) { model in
                             starterCard(model)
@@ -199,38 +311,10 @@ struct OnboardingView: View {
                     inlineStatusRow
                 }
 
-                HStack(spacing: 12) {
-                    if hasDetectedChatModels {
-                        primaryButton("Continue with current models") {
-                            Task {
-                                await appState.refreshModelsAndConnection()
-                                if appState.ollamaConnected {
-                                    appState.completeOnboarding()
-                                }
-                            }
-                        }
-                        .disabled(appState.onboardingIsPulling)
-
-                        secondaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download selected model") {
-                            appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
-                        }
-                        .disabled(appState.onboardingIsPulling)
-                    } else {
-                        primaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download selected model") {
-                            appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
-                        }
-                        .disabled(appState.onboardingIsPulling)
-
-                        secondaryButton("Refresh models") {
-                            Task { await appState.refreshModelsAndConnection() }
-                        }
-                        .disabled(appState.onboardingIsPulling)
-                    }
+                primaryButton(appState.onboardingIsPulling ? "Downloading model" : "Download model") {
+                    appState.beginStarterModelDownload(chatModel: selectedStarterModel.modelName)
                 }
-
-                if hasDetectedChatModels {
-                    currentModelsStrip
-                }
+                .disabled(appState.onboardingIsPulling)
             }
         }
         .padding(24)
@@ -277,14 +361,21 @@ struct OnboardingView: View {
                             .strokeBorder(borderColor, lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .onChange(of: customURL) { _, _ in
+                        remoteServerValidated = false
+                    }
             }
 
             HStack(spacing: 12) {
                 primaryButton("Validate server") {
-                    Task { await appState.validateRemoteServer(urlString: customURL) }
+                    Task {
+                        await appState.validateRemoteServer(urlString: customURL)
+                        remoteServerValidated = appState.ollamaConnected && !remoteChatModels.isEmpty
+                    }
                 }
                 secondaryButton("Use local URL") {
                     customURL = "http://localhost:11434"
+                    remoteServerValidated = false
                 }
             }
 
@@ -292,7 +383,7 @@ struct OnboardingView: View {
                 inlineStatusRow
             }
 
-            if !appState.availableModels.isEmpty && appState.ollamaConnected {
+            if remoteServerValidated && !remoteChatModels.isEmpty {
                 remoteModelsSection
             }
         }
@@ -305,32 +396,56 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28))
     }
 
-    private var currentModelsStrip: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Current models on this Mac")
+    private var currentModelsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Choose your current model on this Mac")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                 ForEach(detectedChatModels.prefix(4)) { model in
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(onboardingBlue.opacity(0.18))
-                            .frame(width: 30, height: 30)
-                            .overlay {
-                                Image(systemName: "cpu")
-                                    .font(.system(size: 12, weight: .medium))
+                    Button {
+                        appState.selectedModel = model.name
+                    } label: {
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(onboardingBlue.opacity(0.18))
+                                .frame(width: 30, height: 30)
+                                .overlay {
+                                    Image(systemName: "cpu")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(onboardingBlue)
+                                }
+                            Text(model.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+                                .lineLimit(1)
+                            Spacer()
+                            if appState.selectedModel == model.name {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18, weight: .semibold))
                                     .foregroundStyle(onboardingBlue)
                             }
-                        Text(model.name)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
-                            .lineLimit(1)
-                        Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.035))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(appState.selectedModel == model.name ? onboardingBlue.opacity(0.6) : borderColor, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.035))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .buttonStyle(.plain)
+                }
+            }
+
+            primaryButton("Continue") {
+                Task {
+                    await appState.refreshModelsAndConnection()
+                    if appState.ollamaConnected {
+                        appState.completeOnboarding()
+                    }
                 }
             }
         }
@@ -358,54 +473,44 @@ struct OnboardingView: View {
         Button {
             selectedStarterModel = model
         } label: {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(model.title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
-                        if model.isRecommended {
-                            miniBadge("Best")
-                        }
-                    }
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(model.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(isDark ? .white : Color(red: 0.08, green: 0.1, blue: 0.14))
+
                     Text(model.summary)
                         .font(.system(size: 12))
                         .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
                         .multilineTextAlignment(.leading)
-                    HStack(spacing: 8) {
-                        infoChip(model.ramLabel)
-                        if let note = model.note {
-                            infoChip(note)
-                        }
-                    }
+                        .lineLimit(2)
                 }
                 Spacer(minLength: 12)
-                HStack {
-                    VStack(alignment: .trailing, spacing: 10) {
-                        Text(model.memoryTag)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(isDark ? Color.white.opacity(0.86) : Color.black.opacity(0.76))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
-                            .clipShape(Capsule())
-                        Spacer(minLength: 0)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        infoChip(model.memoryGuide)
                     }
                     if selectedStarterModel == model {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.system(size: 26, weight: .semibold))
                             .foregroundStyle(onboardingBlue)
+                    } else {
+                        Circle()
+                            .strokeBorder(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.1), lineWidth: 1)
+                            .frame(width: 26, height: 26)
                     }
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(cardFill(selected: selectedStarterModel == model))
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(selectedStarterModel == model ? onboardingBlue.opacity(0.7) : borderColor, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18)
+                    .inset(by: 0.5)
+                    .stroke(selectedStarterModel == model ? onboardingBlue.opacity(0.78) : borderColor, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
     }
@@ -639,21 +744,113 @@ struct OnboardingView: View {
     private func infoChip(_ label: String) -> some View {
         Text(label)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color(red: 0.604, green: 0.627, blue: 0.651))
+            .foregroundStyle(isDark ? Color.white.opacity(0.78) : Color.black.opacity(0.72))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
+            .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.05))
             .clipShape(Capsule())
     }
 
-    private func miniBadge(_ label: String) -> some View {
-        Text(label)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(onboardingBlue)
-            .clipShape(Capsule())
+    private func startIntroFlow() {
+        introTask?.cancel()
+        introTask = Task {
+            try? await Task.sleep(for: .seconds(2.4))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                introStage = .features
+            }
+        }
+    }
+
+    private func advanceIntro() {
+        if featureIndex < featureCards.count - 1 {
+            featureIndex += 1
+        } else {
+            introStage = .setup
+        }
+    }
+}
+
+private enum IntroStage {
+    case splash
+    case features
+    case setup
+}
+
+private enum OnboardingFeature: CaseIterable {
+    case askAnything
+    case keepContext
+    case stayPrivate
+
+    var icon: String {
+        switch self {
+        case .askAnything:
+            return "text.bubble"
+        case .keepContext:
+            return "doc.text.magnifyingglass"
+        case .stayPrivate:
+            return "lock.shield"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .askAnything:
+            return "Ask your documents anything"
+        case .keepContext:
+            return "Find what matters fast"
+        case .stayPrivate:
+            return "Keep everything on your terms"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .askAnything:
+            return "Open a PDF, note, or text file and chat with it in a calm focused workspace built for reading."
+        case .keepContext:
+            return "Sero keeps the conversation centered on the pages you opened so answers feel grounded and easy to trust."
+        case .stayPrivate:
+            return "Run models on this Mac or connect to a server you already control and stay in charge of where your data goes."
+        }
+    }
+}
+
+private struct FeaturePulseIcon: View {
+    let systemName: String
+    let tint: Color
+    let isDark: Bool
+
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(tint.opacity(isDark ? 0.14 : 0.12))
+                .frame(width: 150, height: 150)
+                .scaleEffect(pulse ? 1.06 : 0.94)
+                .opacity(pulse ? 0.95 : 0.55)
+
+            Circle()
+                .stroke(tint.opacity(isDark ? 0.28 : 0.22), lineWidth: 1.2)
+                .frame(width: 126, height: 126)
+                .scaleEffect(pulse ? 1.12 : 0.92)
+                .opacity(pulse ? 0.78 : 0.38)
+
+            Circle()
+                .fill(isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.86))
+                .frame(width: 98, height: 98)
+                .overlay {
+                    Image(systemName: systemName)
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
     }
 }
 
@@ -665,10 +862,10 @@ enum StarterModel: String, CaseIterable, Equatable {
 
     var title: String {
         switch self {
-        case .qwen3b: return "Qwen 2.5 3B"
-        case .llama3b: return "Llama 3.2 3B"
-        case .qwenCoder7b: return "Qwen 2.5 Coder 7B"
-        case .llama8b: return "Llama 3.1 8B"
+        case .qwen3b: return "Qwen 2.5"
+        case .llama3b: return "Llama 3.2"
+        case .qwenCoder7b: return "Qwen 2.5 Coder"
+        case .llama8b: return "Llama 3.1"
         }
     }
 
@@ -694,38 +891,12 @@ enum StarterModel: String, CaseIterable, Equatable {
         }
     }
 
-    var memoryTag: String {
+    var memoryGuide: String {
         switch self {
         case .qwen3b, .llama3b:
-            return "8 GB"
+            return "Best on 8 GB RAM"
         case .qwenCoder7b, .llama8b:
-            return "16 GB+"
+            return "Best on 16 GB RAM"
         }
-    }
-
-    var ramLabel: String {
-        switch self {
-        case .qwen3b, .llama3b:
-            return "Best for 8 GB RAM"
-        case .qwenCoder7b, .llama8b:
-            return "Best for 16 GB or more"
-        }
-    }
-
-    var note: String? {
-        switch self {
-        case .qwen3b:
-            return "Fast"
-        case .llama3b:
-            return "Simple"
-        case .qwenCoder7b:
-            return "Recommended"
-        case .llama8b:
-            return "Higher quality"
-        }
-    }
-
-    var isRecommended: Bool {
-        self == .qwenCoder7b
     }
 }

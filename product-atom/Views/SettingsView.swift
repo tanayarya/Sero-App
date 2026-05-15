@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var isTestingConnection = false
     @State private var connectionResult: Bool?
     @State private var urlDraft: String = ""
+    @State private var useRemoteServer = false
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
@@ -17,9 +18,11 @@ struct SettingsView: View {
             Divider()
             settingsFooter
         }
-        .frame(width: 480, height: 460)
+        .frame(width: 540, height: 620)
+        .background(isDark ? Color(red: 0.145, green: 0.137, blue: 0.137) : Color(red: 0.96, green: 0.96, blue: 0.98))
         .onAppear {
             urlDraft = appState.ollamaURL
+            useRemoteServer = !isLocalURL(appState.ollamaURL)
             appState.fetchModels()
         }
     }
@@ -27,57 +30,112 @@ struct SettingsView: View {
     @ViewBuilder
     private var settingsHeader: some View {
         HStack {
-            Label("Settings", systemImage: "gearshape.fill")
-                .font(.system(size: 15, weight: .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Settings", systemImage: "gearshape.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isDark ? .white : Color.black.opacity(0.82))
+                Text("Manage your connection, models, and setup flow.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.secondary)
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(isDark ? .white.opacity(0.88) : Color.black.opacity(0.76))
+                    .frame(width: 28, height: 28)
+                    .background(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
         }
-        .padding(18)
+        .padding(.horizontal, 18)
+        .padding(.top, 24)
+        .padding(.bottom, 18)
     }
 
     @ViewBuilder
     private var settingsContent: some View {
-        Form {
-            ollamaSection
-            modelsSection
-            setupSection
-            appearanceSection
+        ScrollView(showsIndicators: true) {
+            VStack(spacing: 16) {
+                runtimeSection
+                modelsSection
+                setupSection
+                appearanceSection
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
-    private var ollamaSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Ollama URL")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                TextField("", text: $urlDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13, design: .monospaced))
-                    .multilineTextAlignment(.leading)
-                    .onSubmit { commitURL() }
-
-                HStack(spacing: 6) {
-                    connectionIndicator
-                    Text("Default: http://localhost:11434  ·  Saved on Enter")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button(isTestingConnection ? "Testing…" : "Test") {
+    private var runtimeSection: some View {
+        settingsCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    modeButton(title: "Use this Mac", icon: "laptopcomputer", isSelected: !useRemoteServer) {
+                        useRemoteServer = false
+                        urlDraft = "http://localhost:11434"
                         commitURL()
-                        testConnection()
+                        connectionResult = nil
                     }
-                    .controlSize(.small)
-                    .disabled(isTestingConnection)
+                    modeButton(title: "Use another server", icon: "network", isSelected: useRemoteServer) {
+                        useRemoteServer = true
+                        connectionResult = nil
+                    }
+                }
+
+                if useRemoteServer {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Server URL")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 10) {
+                            TextField("http://192.168.1.40:11434", text: $urlDraft)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13, design: .monospaced))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(Color(red: 0.039, green: 0.518, blue: 1).opacity(0.55), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .onSubmit { commitURL() }
+
+                            Button(isTestingConnection ? "Testing…" : "Test") {
+                                commitURL()
+                                testConnection()
+                            }
+                            .controlSize(.small)
+                            .disabled(isTestingConnection)
+                        }
+
+                        HStack(spacing: 6) {
+                            connectionIndicator
+                            Text("Saved on Enter")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        connectionIndicator
+                        Text("Using the local Ollama runtime on this Mac.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Refresh") {
+                            urlDraft = "http://localhost:11434"
+                            commitURL()
+                            appState.fetchModels()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
             }
         }
@@ -97,39 +155,27 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var modelsSection: some View {
-        Section {
-            if appState.availableModels.isEmpty {
+        settingsCard(title: "AI Models", footer: "Recommended: llama3.2 or qwen2.5-coder models") {
+            if settingsChatModels.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("No models detected. Make sure Ollama is running.")
+                    Text(useRemoteServer ? "No chat models found on that server yet." : "No models detected. Make sure Ollama is running.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
             } else {
-                Picker("Chat Model", selection: $appState.selectedModel) {
-                    ForEach(appState.availableModels) { m in
-                        Text(m.name).tag(m.name)
-                    }
-                }
-                Picker("Embedding Model", selection: $appState.embeddingModel) {
-                    Text("None (keyword search)").tag("")
-                    ForEach(appState.availableModels) { m in
-                        Text(m.name).tag(m.name)
-                    }
+                VStack(spacing: 10) {
+                    settingsPickerRow(title: "Chat Model", selection: $appState.selectedModel)
                 }
             }
-        } header: {
-            Text("AI Models")
-        } footer: {
-            Text("Recommended: llama3.2 or qwen2.5-coder models")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private var setupSection: some View {
-        Section("Setup") {
+        settingsCard(title: "Setup") {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Setup Assistant")
@@ -143,6 +189,7 @@ struct SettingsView: View {
                     appState.reopenOnboarding()
                     dismiss()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
             }
         }
@@ -150,28 +197,32 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var appearanceSection: some View {
-        Section("Appearance") {
-            Picker("Theme", selection: $appState.colorSchemePref) {
-                Label("System", systemImage: "circle.lefthalf.filled").tag("system")
-                Label("Light", systemImage: "sun.max").tag("light")
-                Label("Dark", systemImage: "moon").tag("dark")
+        settingsCard(title: "Appearance") {
+            HStack(spacing: 10) {
+                themeButton(title: "System", systemImage: "circle.lefthalf.filled", value: "system")
+                themeButton(title: "Light", systemImage: "sun.max", value: "light")
+                themeButton(title: "Dark", systemImage: "moon", value: "dark")
             }
-            .pickerStyle(.radioGroup)
         }
     }
 
     @ViewBuilder
     private var settingsFooter: some View {
         HStack {
-            Button("Refresh Models") { appState.fetchModels() }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            footerButton(
+                title: "Refresh Models",
+                isPrimary: false,
+                action: { appState.fetchModels() }
+            )
             Spacer()
-            Button("Done") { commitURL(); dismiss() }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.039, green: 0.518, blue: 1))
+            footerButton(
+                title: "Done",
+                isPrimary: true,
+                action: { commitURL(); dismiss() }
+            )
         }
-        .padding(16)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
     }
 
     private func commitURL() {
@@ -194,5 +245,134 @@ struct SettingsView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { connectionResult = nil }
             }
         }
+    }
+
+    @ViewBuilder
+    private func settingsCard<Content: View>(title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            content()
+            if let footer {
+                Text(footer)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func settingsPickerRow(title: String, selection: Binding<String>, includeNone: Bool = false) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isDark ? .white : Color.black.opacity(0.78))
+            Spacer(minLength: 12)
+            Picker(title, selection: selection) {
+                if includeNone {
+                    Text("None (keyword search)").tag("")
+                }
+                ForEach(settingsChatModels) { m in
+                    Text(m.name).tag(m.name)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 220)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(isDark ? Color.white.opacity(0.03) : Color.black.opacity(0.025))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func themeButton(title: String, systemImage: String, value: String) -> some View {
+        let isSelected = appState.colorSchemePref == value
+        Button {
+            appState.colorSchemePref = value
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .medium))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(isSelected ? .white : (isDark ? Color.white.opacity(0.82) : Color.black.opacity(0.75)))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color(red: 0.039, green: 0.518, blue: 1) : (isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.04)))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var settingsChatModels: [OllamaModel] {
+        appState.availableModels.filter {
+            let lower = $0.name.lowercased()
+            return !lower.contains("embed") && !lower.contains("nomic") && !lower.contains("mxbai")
+        }
+    }
+
+    @ViewBuilder
+    private func modeButton(title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Circle()
+                    .fill(isSelected ? Color(red: 0.039, green: 0.518, blue: 1).opacity(0.18) : Color.white.opacity(isDark ? 0.06 : 0.8))
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(isSelected ? Color(red: 0.039, green: 0.518, blue: 1) : (isDark ? .white : Color.black.opacity(0.75)))
+                    }
+
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isDark ? .white : Color.black.opacity(0.82))
+            }
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            .padding(14)
+            .background(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(isSelected ? Color(red: 0.039, green: 0.518, blue: 1).opacity(0.72) : (isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)), lineWidth: isSelected ? 1.4 : 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func isLocalURL(_ url: String) -> Bool {
+        let lower = url.lowercased()
+        return lower.contains("localhost") || lower.contains("127.0.0.1")
+    }
+
+    @ViewBuilder
+    private func footerButton(title: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: isPrimary ? .semibold : .medium))
+                .foregroundStyle(isPrimary ? .white : (isDark ? .white : Color.black.opacity(0.75)))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(
+                    isPrimary
+                    ? Color(red: 0.039, green: 0.518, blue: 1)
+                    : (isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.05))
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }

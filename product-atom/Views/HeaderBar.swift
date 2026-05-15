@@ -35,10 +35,15 @@ struct HeaderBar: View {
     // MARK: - Logo — asset catalog serves dark/light variant automatically
     @ViewBuilder
     private var logoView: some View {
-        Image("logo")
-            .resizable()
-            .scaledToFit()
-            .frame(height: 28)
+        Button {
+            appState.returnToHome()
+        } label: {
+            Image("logo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 28)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Center label

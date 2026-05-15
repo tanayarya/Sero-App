@@ -134,6 +134,12 @@ final class AppState: ObservableObject {
         processingState = .idle
     }
 
+    func returnToHome() {
+        stopStreaming()
+        messages.removeAll()
+        releaseScope()
+    }
+
     private func addToRecents(_ doc: ChatDocument) {
         var recents = recentDocuments.filter { $0.id != doc.id }
         recents.insert(doc, at: 0)
@@ -229,6 +235,20 @@ final class AppState: ObservableObject {
                 chunks = RAGEngine.shared.keywordRetrieve(for: userQuestion, docID: doc.id, topK: 8)
             }
 
+            guard !chunks.isEmpty else {
+                if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
+                    messages[idx] = ChatMessage(
+                        id: assistantID,
+                        role: .assistant,
+                        content: "Reopen this document, let it finish preparing, then chat again.",
+                        isStreaming: false
+                    )
+                }
+                isStreaming = false
+                streamingTask = nil
+                return
+            }
+
             let systemPrompt = RAGEngine.shared.buildSystemPrompt(chunks: chunks, documentName: doc.name)
             let sourcePages = Array(Set(chunks.map { $0.pageNumber })).sorted()
             let primaryPage = chunks.first?.pageNumber
@@ -265,12 +285,23 @@ final class AppState: ObservableObject {
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                 messages[idx] = ChatMessage(
                     id: assistantID, role: .assistant,
-                    content: "⚠️ \(error.localizedDescription)", isStreaming: false
+                    content: userFacingChatErrorMessage(for: error), isStreaming: false
                 )
             }
         }
         isStreaming = false
         streamingTask = nil
+    }
+
+    private func userFacingChatErrorMessage(for error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("couldn’t be read because it is missing")
+            || message.contains("couldn't be read because it is missing")
+            || message.contains("could not be read because it is missing")
+            || message.contains("missing") {
+            return "Reopen this document, let it finish preparing, then chat again."
+        }
+        return "Something went wrong. Reopen the document, let it finish preparing, then try again."
     }
 
     // MARK: - Model Fetching
