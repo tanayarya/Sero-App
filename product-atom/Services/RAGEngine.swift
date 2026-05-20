@@ -1,5 +1,7 @@
 import Foundation
+import AppKit
 import PDFKit
+import Vision
 
 // MARK: - Data Types
 
@@ -52,7 +54,11 @@ final class RAGEngine {
         for i in 0..<doc.pageCount {
             guard let page = doc.page(at: i) else { continue }
             let raw = page.string ?? ""
-            let cleaned = cleanText(raw)
+            let selectableText = cleanText(raw)
+            let ocrText = shouldRunOCR(for: selectableText)
+                ? cleanText((try? recognizeText(in: page)) ?? "")
+                : ""
+            let cleaned = bestText(selectableText, ocrText)
             guard !cleaned.isEmpty else { continue }
 
             if pendingText.isEmpty {
@@ -70,6 +76,71 @@ final class RAGEngine {
             pages.append((page: pendingStart, text: pendingText))
         }
         return pages.isEmpty ? [(page: 1, text: "No readable text found.")] : pages
+    }
+
+    private func shouldRunOCR(for text: String) -> Bool {
+        let letterCount = text.unicodeScalars.filter {
+            CharacterSet.letters.contains($0)
+        }.count
+        return text.count < 80 || letterCount < 30
+    }
+
+    private func bestText(_ selectableText: String, _ ocrText: String) -> String {
+        guard !ocrText.isEmpty else { return selectableText }
+        guard !selectableText.isEmpty else { return ocrText }
+        return ocrText.count > selectableText.count * 2 ? ocrText : selectableText
+    }
+
+    private func recognizeText(in page: PDFPage) throws -> String {
+        guard let image = renderPageForOCR(page) else { return "" }
+
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.minimumTextHeight = 0.01
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        let observations = request.results ?? []
+        let lines = observations
+            .compactMap { $0.topCandidates(1).first?.string }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func renderPageForOCR(_ page: PDFPage) -> CGImage? {
+        let bounds = page.bounds(for: .mediaBox)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+        let maxPixelDimension: CGFloat = 2400
+        let scale = min(3, max(1.5, maxPixelDimension / max(bounds.width, bounds.height)))
+        let width = Int((bounds.width * scale).rounded(.up))
+        let height = Int((bounds.height * scale).rounded(.up))
+        guard width > 0, height > 0 else { return nil }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.saveGState()
+        context.scaleBy(x: scale, y: scale)
+        page.draw(with: .mediaBox, to: context)
+        context.restoreGState()
+
+        return context.makeImage()
     }
 
     private func extractTextPages(_ text: String) -> [(page: Int, text: String)] {
