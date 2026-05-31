@@ -1,7 +1,7 @@
 # Sero
 
 Local document chat for macOS using Ollama.
-
+Download Sero - sero.tanayarya.com
 ## What it does
 
 - Chat with `PDF`, `TXT`, and `Markdown` files in a focused macOS app.
